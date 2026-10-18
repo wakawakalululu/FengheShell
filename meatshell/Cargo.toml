@@ -9,6 +9,11 @@ repository = "https://github.com/your/meatshell"
 readme = "README.md"
 rust-version = "1.88"
 
+# MeatShell × rssh 缝合：AI 运维 Copilot 以独立 crate 注入基底
+# （本地脱敏 / OSC133 命令块 / 风险 Run Gate / LLM Triage）。
+[workspace]
+members = ["crates/ai-copilot"]
+
 [package.metadata.deb]
 extended-description = "MeatShell is a cross-platform terminal client written in Rust and Slint."
 depends = "$auto"
@@ -37,6 +42,10 @@ assets = [
 headless = []
 
 [dependencies]
+# MeatShell 内置 AI Copilot（rssh 移植 + 融合扩展）：本地脱敏、OSC133
+# 命令块解析、风险分级 Run Gate、LLM Triage。见 crates/ai-copilot。
+ai-copilot = { path = "crates/ai-copilot" }
+
 # Keep all desktop platforms on the native text layout patched below.
 slint = { version = "=1.18.1", default-features = false, features = ["std", "backend-winit", "renderer-femtovg", "renderer-software", "accessibility", "compat-1-2"] }
 
