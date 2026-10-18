@@ -3,6 +3,7 @@ import { Theme } from "theme.slint";
 import { SftpPanel, SftpEntry, SftpTreeNode, TunnelInfo } from "sftp_panel.slint";
 import { TabInfo } from "tabs.slint";
 import { DockExpandButton, ToolStrip } from "widgets.slint";
+import { AiPanel, AiMessage } from "ai_panel.slint";
 
 // Embed the terminal fonts here too so the cell-probe Text below measures
 // with the CORRECT font (the built-in Meatshell Mono), not a system fallback.
@@ -306,6 +307,26 @@ export component TerminalView inherits Rectangle {
     in property <bool> sftp-show-group: true;
     in property <bool> sftp-available: true;
     in property <[TunnelInfo]> tunnels: [];
+
+    // --- AI Copilot drawer (#ai-copilot, MeatShell x rssh) -----------------
+    // Per-tab: messages live in Rust and are mirrored into this model.
+    in property <[AiMessage]> ai-messages: [];
+    in property <bool> ai-open: false;
+    in property <bool> ai-busy: false;
+    // LLM settings are window-wide, they only enter through the drawer UI.
+    in property <string> ai-protocol: "openai-completions";
+    in property <string> ai-endpoint: "";
+    in property <string> ai-model: "";
+    in property <bool> ai-redaction-enabled: true;
+    in property <bool> ai-auto-run-readonly: false;
+    callback ai-send(string);
+    callback ai-toggle();
+    callback ai-close();
+    callback ai-clear();
+    callback ai-cancel();
+    callback ai-run-card(string);
+    callback ai-reject-card(string);
+    callback ai-apply-settings(string, string, string, string, bool, bool);
 
     // Per-session now (#v0.5): the AppWindow stores these in each TerminalState
     // and writes back via the set-* callbacks, so each tab/pane keeps its own SFTP
@@ -626,6 +647,24 @@ export component TerminalView inherits Rectangle {
                     color: Theme.success;
                     font-size: Theme.fs-xs;
                     vertical-alignment: center;
+                }
+                // AI Copilot toggle — lives on the status strip so it never
+                // collides with the SFTP dock or the command bar (#ai-copilot).
+                ai-ta := TouchArea {
+                    width: ai-label.width + 14px;
+                    height: 18px;
+                    clicked => { root.ai-toggle(); };
+                    Rectangle {
+                        border-radius: 9px;
+                        background: root.ai-open ? Theme.accent : (ai-ta.has-hover ? Theme.bg-hover : Theme.bg-elevated);
+                        ai-label := Text {
+                            x: 7px;
+                            text: @tr("AI");
+                            color: root.ai-open ? #ffffff : Theme.text-secondary;
+                            font-size: Theme.fs-xs;
+                            vertical-alignment: center;
+                        }
+                    }
                 }
             }
         }
@@ -2354,6 +2393,30 @@ export component TerminalView inherits Rectangle {
                     root.set-sftp-collapsed(false);
                 }
             }
+        }
+
+        // --- AI Copilot drawer overlay (#ai-copilot) -----------------------
+        // Declared last inside the dock region so it paints above the SFTP
+        // panel; it is purely a right-edge overlay and takes no layout space.
+        if root.ai-open : AiPanel {
+            width: min(420px, max(280px, parent.width - 120px));
+            x: parent.width - self.width - 6px;
+            y: 6px;
+            height: parent.height - 12px;
+            messages: root.ai-messages;
+            busy: root.ai-busy;
+            protocol: root.ai-protocol;
+            endpoint: root.ai-endpoint;
+            model: root.ai-model;
+            redaction-enabled: root.ai-redaction-enabled;
+            auto-run-readonly: root.ai-auto-run-readonly;
+            close() => { root.ai-close(); }
+            send(text) => { root.ai-send(text); }
+            clear() => { root.ai-clear(); }
+            cancel() => { root.ai-cancel(); }
+            run-card(id) => { root.ai-run-card(id); }
+            reject-card(id) => { root.ai-reject-card(id); }
+            apply-settings(p, e, m, k, r, a) => { root.ai-apply-settings(p, e, m, k, r, a); }
         }
 
         }

@@ -1,0 +1,427 @@
+// AI Copilot 抽屉（MeatShell x rssh 缝合）：会话式排障 + 带副作用评级的
+// 命令卡片 + LLM 端点设置。刻意只做轻量 Markdown 子集（纯文本 + 代码块），
+// 避免把富文本排版引擎塞进一个几十 MB 内存的终端里。
+
+import { Theme } from "theme.slint";
+import { LabeledInput } from "widgets.slint";
+
+export struct AiMessage {
+    role: int,              // 0 用户 / 1 助手 / 2 命令卡片 / 3 错误
+    text: string,
+    card-id: string,
+    cmd: string,
+    explain: string,
+    side-effect: string,
+    risk: string,           // read-only | mutating | destructive
+    gate: string,           // direct | fill | blocked
+    disposition: string,    // pending | executed | filled | rejected | blocked
+    blocked-reason: string,
+}
+
+export component AiPanel inherits Rectangle {
+    in property <[AiMessage]> messages: [];
+    in property <bool> busy: false;
+    in property <string> protocol: "openai-completions";
+    in property <string> endpoint: "";
+    in property <string> model: "";
+    in property <bool> redaction-enabled: true;
+    in property <bool> auto-run-readonly: false;
+
+    callback close();
+    callback send(string);
+    callback clear();
+    callback cancel();
+    // 卡片按钮：绿灯 = 执行；橙灯 = 填入终端。
+    callback run-card(string);
+    callback reject-card(string);
+    callback apply-settings(string, string, string, string, bool, bool);
+
+    property <bool> settings-open: false;
+    property <string> edit-protocol: root.protocol;
+    property <string> edit-endpoint: root.endpoint;
+    property <string> edit-model: root.model;
+    property <string> edit-key: "";
+    property <bool> edit-redaction: root.redaction-enabled;
+    property <bool> edit-auto: root.auto-run-readonly;
+
+    function card-bg(risk: string) -> brush {
+        if risk == "destructive" {
+            return Theme.danger.with-alpha(0.12);
+        }
+        if risk == "mutating" {
+            return Theme.warning.with-alpha(0.12);
+        }
+        return Theme.success.with-alpha(0.12);
+    }
+
+    function risk-color(risk: string) -> brush {
+        if risk == "destructive" {
+            return Theme.danger;
+        }
+        if risk == "mutating" {
+            return Theme.warning;
+        }
+        return Theme.success;
+    }
+
+    background: Theme.bg-panel;
+    border-width: 1px;
+    border-color: Theme.border-subtle;
+    border-radius: Theme.radius-md;
+    clip: true;
+
+    VerticalLayout {
+        spacing: 0;
+
+        // --- 标题栏 --------------------------------------------------------
+        Rectangle {
+            height: 34px;
+            background: Theme.bg-panel-alt;
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 6px;
+                spacing: 4px;
+                Text {
+                    text: @tr("AI Copilot");
+                    color: Theme.text-primary;
+                    font-size: Theme.fs-md;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                if root.busy : Text {
+                    text: @tr("Diagnosing...");
+                    color: Theme.accent;
+                    font-size: Theme.fs-xs;
+                    vertical-alignment: center;
+                }
+                gear-ta := TouchArea {
+                    width: 24px;
+                    clicked => { root.settings-open = !root.settings-open; }
+                    Text {
+                        text: "\u{E8B8}";
+                        font-family: "Material Icons";
+                        font-size: 15px;
+                        color: gear-ta.has-hover ? Theme.accent : Theme.text-secondary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                clear-ta := TouchArea {
+                    width: 24px;
+                    clicked => { root.clear(); }
+                    Text {
+                        text: "\u{E872}";
+                        font-family: "Material Icons";
+                        font-size: 15px;
+                        color: clear-ta.has-hover ? Theme.accent : Theme.text-secondary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                close-ta := TouchArea {
+                    width: 24px;
+                    clicked => { root.close(); }
+                    Text {
+                        text: "\u{E5CD}";
+                        font-family: "Material Icons";
+                        font-size: 15px;
+                        color: close-ta.has-hover ? Theme.danger : Theme.text-secondary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        // --- 设置抽屉 ------------------------------------------------------
+        if root.settings-open : Rectangle {
+            height: settings-box.preferred-height;
+            background: Theme.bg-elevated;
+            settings-box := VerticalLayout {
+                padding: 10px;
+                spacing: 6px;
+                LabeledInput {
+                    label: @tr("Protocol (openai-completions | deepseek-thinking | anthropic-messages | ollama)");
+                    placeholder: "openai-completions";
+                    value <=> root.edit-protocol;
+                }
+                LabeledInput {
+                    label: @tr("Endpoint");
+                    placeholder: "https://api.openai.com/v1";
+                    value <=> root.edit-endpoint;
+                }
+                LabeledInput {
+                    label: @tr("Model");
+                    placeholder: "gpt-4o-mini";
+                    value <=> root.edit-model;
+                }
+                LabeledInput {
+                    label: @tr("API key (leave blank to keep the stored one)");
+                    placeholder: "sk-...";
+                    password: true;
+                    reveal-enabled: true;
+                    value <=> root.edit-key;
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    Rectangle {
+                        redac-ta := TouchArea {
+                            width: redac-row.width;
+                            height: redac-row.height;
+                            clicked => { root.edit-redaction = !root.edit-redaction; }
+                        }
+                        redac-row := HorizontalLayout {
+                            spacing: 4px;
+                            Text {
+                                text: root.edit-redaction ? "\u{E834}" : "\u{E835}";
+                                font-family: "Material Icons";
+                                font-size: 15px;
+                                color: Theme.text-secondary;
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                text: @tr("Redact secrets locally");
+                                color: Theme.text-secondary;
+                                font-size: Theme.fs-sm;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                    Rectangle {
+                        auto-ta := TouchArea {
+                            width: auto-row.width;
+                            height: auto-row.height;
+                            clicked => { root.edit-auto = !root.edit-auto; }
+                        }
+                        auto-row := HorizontalLayout {
+                            spacing: 4px;
+                            Text {
+                                text: root.edit-auto ? "\u{E834}" : "\u{E835}";
+                                font-family: "Material Icons";
+                                font-size: 15px;
+                                color: Theme.text-secondary;
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                text: @tr("Auto-run read-only commands");
+                                color: Theme.text-secondary;
+                                font-size: Theme.fs-sm;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 6px;
+                    save-btn := Rectangle {
+                        width: 76px;
+                        height: 24px;
+                        border-radius: Theme.radius-sm;
+                        background: save-ta.has-hover ? Theme.accent-hover : Theme.accent;
+                        save-ta := TouchArea {
+                            clicked => {
+                                root.apply-settings(
+                                    root.edit-protocol,
+                                    root.edit-endpoint,
+                                    root.edit-model,
+                                    root.edit-key,
+                                    root.edit-redaction,
+                                    root.edit-auto,
+                                );
+                                root.edit-key = "";
+                            }
+                        }
+                        Text {
+                            text: @tr("Save");
+                            color: #ffffff;
+                            font-size: Theme.fs-sm;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 对话流 --------------------------------------------------------
+        Rectangle {
+            background: Theme.bg-root;
+            VerticalLayout {
+                padding: 8px;
+                spacing: 8px;
+                for msg in root.messages : Rectangle {
+                    // 命令卡片（role 2）
+                    if msg.role == 2 : Rectangle {
+                        border-radius: Theme.radius-md;
+                        background: card-bg(msg.risk);
+                        VerticalLayout {
+                            padding: 8px;
+                            spacing: 6px;
+                            HorizontalLayout {
+                                spacing: 6px;
+                                Rectangle {
+                                    width: risk-label.width + 10px;
+                                    height: 16px;
+                                    border-radius: 8px;
+                                    background: risk-color(msg.risk);
+                                    risk-label := Text {
+                                        x: 5px;
+                                        text: msg.risk;
+                                        color: #ffffff;
+                                        font-size: Theme.fs-xs;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                if msg.disposition != "pending" : Text {
+                                    text: msg.disposition;
+                                    color: Theme.text-muted;
+                                    font-size: Theme.fs-xs;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            if msg.explain != "" : Text {
+                                text: msg.explain;
+                                wrap: word-wrap;
+                                color: Theme.text-primary;
+                                font-size: Theme.fs-sm;
+                            }
+                            Text {
+                                text: msg.cmd;
+                                wrap: word-wrap;
+                                color: Theme.text-primary;
+                                font-size: Theme.fs-sm;
+                                font-family: Theme.font-mono;
+                            }
+                            if msg.side-effect != "" : Text {
+                                text: msg.side-effect;
+                                wrap: word-wrap;
+                                color: Theme.text-secondary;
+                                font-size: Theme.fs-xs;
+                            }
+                            if msg.blocked-reason != "" : Text {
+                                text: msg.blocked-reason;
+                                wrap: word-wrap;
+                                color: Theme.danger;
+                                font-size: Theme.fs-xs;
+                            }
+                            if msg.disposition == "pending" && msg.gate != "blocked" : HorizontalLayout {
+                                alignment: end;
+                                spacing: 6px;
+                                // 绿灯：一键写入 PTY 并回车；橙灯：只填入终端。
+                                run-btn := Rectangle {
+                                    width: run-label.width + 18px;
+                                    height: 22px;
+                                    border-radius: Theme.radius-sm;
+                                    background: run-ta.has-hover ? Theme.accent-hover : risk-color(msg.risk);
+                                    run-ta := TouchArea {
+                                        clicked => { root.run-card(msg.card-id); }
+                                    }
+                                    run-label := Text {
+                                        x: 9px;
+                                        text: msg.gate == "direct" ? @tr("Run") : @tr("Fill terminal");
+                                        color: #ffffff;
+                                        font-size: Theme.fs-sm;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                Rectangle {
+                                    width: rej-label.width + 18px;
+                                    height: 22px;
+                                    border-radius: Theme.radius-sm;
+                                    background: rej-ta.has-hover ? Theme.bg-active : Theme.bg-elevated;
+                                    border-width: 1px;
+                                    border-color: Theme.border-subtle;
+                                    rej-ta := TouchArea {
+                                        clicked => { root.reject-card(msg.card-id); }
+                                    }
+                                    rej-label := Text {
+                                        x: 9px;
+                                        text: @tr("Reject");
+                                        color: Theme.text-secondary;
+                                        font-size: Theme.fs-sm;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // 用户 / 助手 / 错误文本
+                    if msg.role != 2 : Rectangle {
+                        background: msg.role == 0 ? Theme.bg-elevated : transparent;
+                        border-radius: Theme.radius-sm;
+                        HorizontalLayout {
+                            padding: 6px;
+                            Text {
+                                text: msg.text;
+                                wrap: word-wrap;
+                                color: msg.role == 3 ? Theme.danger : (msg.role == 0 ? Theme.text-primary : Theme.text-secondary);
+                                font-size: Theme.fs-sm;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 输入区 --------------------------------------------------------
+        Rectangle {
+            height: 40px;
+            background: Theme.bg-panel-alt;
+            HorizontalLayout {
+                padding: 6px;
+                spacing: 6px;
+                input := TextInput {
+                    horizontal-stretch: 1;
+                    single-line: true;
+                    text: "";
+                    font-size: Theme.fs-sm;
+                    color: Theme.text-primary;
+                    accepted => {
+                        if (input.text != "") {
+                            root.send(input.text);
+                            input.text = "";
+                        }
+                    }
+                }
+                if root.busy : Rectangle {
+                    width: 60px;
+                    height: 26px;
+                    border-radius: Theme.radius-sm;
+                    background: Theme.bg-elevated;
+                    stop-ta := TouchArea {
+                        clicked => { root.cancel(); }
+                    }
+                    Text {
+                        text: @tr("Stop");
+                        color: Theme.text-secondary;
+                        font-size: Theme.fs-sm;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                if !root.busy : Rectangle {
+                    width: 60px;
+                    height: 26px;
+                    border-radius: Theme.radius-sm;
+                    background: send-ta.has-hover ? Theme.accent-hover : Theme.accent;
+                    send-ta := TouchArea {
+                        clicked => {
+                            if (input.text != "") {
+                                root.send(input.text);
+                                input.text = "";
+                            }
+                        }
+                    }
+                    Text {
+                        text: @tr("Send");
+                        color: #ffffff;
+                        font-size: Theme.fs-sm;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}

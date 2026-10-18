@@ -29,11 +29,12 @@ import { SystemInfoWindow, SysInfoRow, SysMetricRow, SysNetRow } from "system_in
 import { EditorWindow } from "editor_window.slint";
 import { EditorPane, EditorFindResult, EditorDoc } from "editor_pane.slint";
 import { InterfacePanel, OutputRuleItem, WslProfileInfo, CustomAgentInfo } from "interface_panel.slint";
+import { AiMessage } from "ai_panel.slint";
 // Re-export so `slint::include_modules!` generates the detached Rust window types.
 export { ProcWindow, SystemInfoWindow, EditorWindow }
 import { ComboBox, SpinBox, LineEdit, Button, ScrollView, CheckBox, Palette } from "std-widgets.slint";
 
-export { SessionInfo, LaunchItem, SessionDraft, JumpHop, TabInfo, SftpEntry, SftpTreeNode, TunnelInfo, QuickCmd, PortFwd, WslProfileInfo, CustomAgentInfo }
+export { SessionInfo, LaunchItem, SessionDraft, JumpHop, TabInfo, SftpEntry, SftpTreeNode, TunnelInfo, QuickCmd, PortFwd, WslProfileInfo, CustomAgentInfo, AiMessage }
 
 // --- TerminalState ---------------------------------------------------------
 // Per-terminal view-model exposed to Rust. A TabInfo has the metadata; the
@@ -78,6 +79,13 @@ export struct TerminalState {
     font-size: int,             // per-session zoom override in px (0 = follow window)
     tunnels: [TunnelInfo],      // runtime SSH tunnels (#206)
     sftp-collapsed: bool,       // SFTP panel minimised — per session (#v0.5)
+
+    // AI Copilot drawer state (#ai-copilot, MeatShell x rssh 缝合). The
+    // conversation is authoritative in Rust; this model is its UI mirror so a
+    // tab survives getting moved between windows.
+    ai-messages: [AiMessage],
+    ai-open: bool,
+    ai-busy: bool,
     sftp-panel-height: length,  // SFTP panel extent (bottom dock) — per session
     sftp-panel-width: length,   // SFTP panel extent (side dock) — per session
     sftp-saved-height: length,  // height to restore on un-collapse — per session
@@ -701,6 +709,21 @@ export component AppWindow inherits Window {
     callback set-welcome-as-sidebar(bool);         // apply + persist
     in-out property <bool> update-check-enabled: true;   // startup new-version check (#184)
     callback set-update-check-enabled(bool);       // apply + persist
+    // --- AI Copilot (#ai-copilot) ---------------------------------------
+    // Window-wide LLM settings; each terminal tab owns its own conversation.
+    in-out property <string> ai-protocol: "openai-completions";
+    in-out property <string> ai-endpoint: "";
+    in-out property <string> ai-model: "";
+    in-out property <bool> ai-redaction-enabled: true;
+    in-out property <bool> ai-auto-run-readonly: false;
+    callback ai-send(string, string);            // tab-id, question
+    callback ai-toggle(string);                  // tab-id
+    callback ai-close(string);
+    callback ai-clear(string);
+    callback ai-cancel(string);
+    callback ai-run-card(string, string);        // tab-id, card-id
+    callback ai-reject-card(string, string);     // tab-id, card-id
+    callback ai-apply-settings(string, string, string, string, bool, bool);
     in-out property <bool> mcp-enabled: true;
     in-out property <bool> mcp-use-saved-credentials: true;
     in-out property <bool> mcp-allow-commands: true;
@@ -2052,6 +2075,22 @@ export component AppWindow inherits Window {
                         sftp-sort-dir: term.sftp-sort-dir;
                         sftp-available: term.sftp-available;
                         tunnels: term.tunnels;
+                        ai-messages: term.ai-messages;
+                        ai-open: term.ai-open;
+                        ai-busy: term.ai-busy;
+                        ai-protocol: root.ai-protocol;
+                        ai-endpoint: root.ai-endpoint;
+                        ai-model: root.ai-model;
+                        ai-redaction-enabled: root.ai-redaction-enabled;
+                        ai-auto-run-readonly: root.ai-auto-run-readonly;
+                        ai-send(text) => { root.ai-send(term.id, text); }
+                        ai-toggle() => { root.ai-toggle(term.id); }
+                        ai-close() => { root.ai-close(term.id); }
+                        ai-clear() => { root.ai-clear(term.id); }
+                        ai-cancel() => { root.ai-cancel(term.id); }
+                        ai-run-card(id) => { root.ai-run-card(term.id, id); }
+                        ai-reject-card(id) => { root.ai-reject-card(term.id, id); }
+                        ai-apply-settings(p, e, m, k, r, a) => { root.ai-apply-settings(p, e, m, k, r, a); }
                         quick-commands: root.quick-commands;
                         quick-sidebar-enabled: root.quick-commands-as-sidebar;
                         quick-panel-docked: root.quick-panel-open;

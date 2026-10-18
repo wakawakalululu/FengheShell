@@ -1311,6 +1311,11 @@ pub(super) fn wire_session_callbacks(
                 sftp_panel_height: sftp_h_default,
                 sftp_panel_width: sftp_w_default,
                 sftp_saved_height: sftp_h_default,
+                // AI Copilot drawer starts closed; its conversation is rebuilt
+                // from the Rust-side copy whenever it is reopened (#ai-copilot).
+                ai_messages: ModelRc::from(std::rc::Rc::new(VecModel::<AiMessage>::default())),
+                ai_open: false,
+                ai_busy: false,
             });
             // Create vt100 parser for this tab (default 24×80; resized on first
             // terminal-resize callback). 5000-line scrollback is stored for
