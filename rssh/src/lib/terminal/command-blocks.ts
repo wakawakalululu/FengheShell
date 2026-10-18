@@ -1,0 +1,224 @@
+/**
+ * Command block tracker.
+ *
+ * A command block starts at either a submitted Enter or a recognized shell
+ * prompt, according to the per-terminal split mode. Each block has a color
+ * (cycled from a palette) and a pair of xterm markers (start + end) that follow
+ * the scrollback automatically.
+ *
+ * Rules:
+ *   1. Enter mode: Enter in normal buffer closes the previous block and opens
+ *      a new one. This remains the deterministic default.
+ *   2. Prompt mode: after startup or a submitted Enter, inspect only the
+ *      current logical cursor line after xterm parses output. The candidate
+ *      must be a new line containing only a recognized prompt; detection then
+ *      stays latched off until another Enter.
+ *   3. On switching to alternate buffer (vim/top/less/tmux) → close current
+ *      and ignore alternate-buffer writes. Prompt mode can finish an existing
+ *      wait when the normal buffer returns.
+ *   4. When a start marker is disposed (scrollback trimmed), drop the block.
+ *   5. On hard reset (RIS / ESC c), drop all blocks at once — xterm wipes the
+ *      buffer without disposing our markers, so we must clear them ourselves.
+ *
+ * This module owns no DOM. A renderer (e.g. the overlay bar) subscribes
+ * via `onChange` and redraws.
+ */
+import type { Terminal, IMarker, IDisposable } from "@xterm/xterm";
+import { detectPrompt } from "./prompt";
+
+export type CommandBlockSplitMode = "enter" | "prompt";
+
+export interface CommandBlock {
+  id: number;
+  color: string;
+  start: IMarker;
+  end: IMarker | null;
+}
+
+export interface CommandBlockTracker extends IDisposable {
+  readonly blocks: ReadonlyArray<CommandBlock>;
+  /** Called whenever blocks array changes (add / close / gc). */
+  onChange(fn: () => void): IDisposable;
+}
+
+/** Golden-angle HSL cycling — infinite palette, no adjacent-hue collisions. */
+function colorForIndex(i: number): string {
+  const hue = (i * 137.508) % 360;
+  return `hsl(${hue.toFixed(1)}, 65%, 58%)`;
+}
+
+function logicalLineAtCursor(term: Terminal): { text: string; startLine: number; startOffset: number } | null {
+  const buf = term.buffer.active;
+  const cursorAbs = buf.baseY + buf.cursorY;
+  let startAbs = cursorAbs;
+  while (startAbs > 0 && buf.getLine(startAbs)?.isWrapped) startAbs--;
+
+  let text = "";
+  for (let y = startAbs; y <= cursorAbs; y++) {
+    const line = buf.getLine(y);
+    if (!line) return null;
+    text += line.translateToString(true);
+  }
+  return { text, startLine: startAbs, startOffset: startAbs - cursorAbs };
+}
+
+export function createCommandBlockTracker(
+  term: Terminal,
+  splitMode: CommandBlockSplitMode = "enter",
+): CommandBlockTracker {
+  const blocks: CommandBlock[] = [];
+  const listeners = new Set<() => void>();
+  let nextId = 1;
+  const disposables: IDisposable[] = [];
+
+  const emit = () => listeners.forEach(fn => fn());
+
+  let waitingForPrompt = splitMode === "prompt";
+  let submittedLine: IMarker | null = null;
+
+  const clearSubmittedLine = () => {
+    submittedLine?.dispose();
+    submittedLine = null;
+  };
+
+  const waitForReturnedPrompt = () => {
+    const line = logicalLineAtCursor(term);
+    clearSubmittedLine();
+    submittedLine = line ? term.registerMarker(line.startOffset) : null;
+    waitingForPrompt = true;
+  };
+
+  const closeCurrent = (endOffset = -1) => {
+    const cur = blocks[blocks.length - 1];
+    if (!cur || cur.end !== null) return;
+    // Rule 2 close-on-switch: the active buffer is ALREADY the alternate one
+    // here, so registerMarker would land on it and be disposed when the alt
+    // buffer is torn down on exit — leaving the block end-less, so consumers
+    // (染色 / bar / fold) grow it to the cursor forever and stacked tints turn
+    // grey. The command that launched the alt program (less/vim/top) has no
+    // normal-buffer output past its prompt line, so end it at its own start
+    // marker, which stays valid across the alt round-trip.
+    if (term.buffer.active.type === "alternate") {
+      cur.end = cur.start;
+      return;
+    }
+    // Normal buffer: mark the visual row immediately before the next block's
+    // logical start. If that fails at the buffer top, fall back to the cursor.
+    cur.end = term.registerMarker(endOffset) ?? term.registerMarker(0);
+  };
+
+  const openNew = (startOffset = 0) => {
+    const start = term.registerMarker(startOffset);
+    if (!start) return; // can't mark — give up silently
+    const id = nextId++;
+    const block: CommandBlock = {
+      id,
+      color: colorForIndex(id),
+      start,
+      end: null,
+    };
+    // When start marker is trimmed out of scrollback, drop the block.
+    start.onDispose(() => {
+      const i = blocks.indexOf(block);
+      if (i >= 0) {
+        blocks.splice(i, 1);
+        emit();
+      }
+    });
+    blocks.push(block);
+    emit();
+  };
+
+  const splitAt = (startOffset = 0) => {
+    closeCurrent(startOffset - 1);
+    openNew(startOffset);
+  };
+
+  // Drop every block at once. Used on hard reset: the buffer is gone, so no
+  // block corresponds to anything anymore. Snapshot-then-clear mirrors dispose():
+  // start.dispose()'s onDispose does blocks.indexOf(block) — blocks already empty,
+  // so it neither re-splices nor double-emits. One emit() at the end.
+  const resetAll = () => {
+    clearSubmittedLine();
+    waitingForPrompt = splitMode === "prompt";
+    if (blocks.length === 0) return;
+    const snapshot = blocks.slice();
+    blocks.length = 0;
+    for (const b of snapshot) {
+      b.start.dispose();
+      b.end?.dispose();
+    }
+    emit();
+  };
+
+  // Enter mode splits on every `\r` (including multiline paste). Prompt mode
+  // merely rearms its output-side detector after the submitted command.
+  disposables.push(
+    term.onData((data: string) => {
+      if (term.buffer.active.type === "alternate") return;
+      for (const ch of data) {
+        if (ch === "\r") {
+          if (splitMode === "enter") splitAt();
+          else waitForReturnedPrompt();
+        }
+      }
+    }),
+  );
+
+  if (splitMode === "prompt") {
+    disposables.push(
+      term.onWriteParsed(() => {
+        if (!waitingForPrompt || term.buffer.active.type === "alternate") return;
+        const line = logicalLineAtCursor(term);
+        if (!line) return;
+        if (submittedLine && !submittedLine.isDisposed && submittedLine.line === line.startLine) return;
+        const prompt = detectPrompt(line.text);
+        if (!prompt || line.text.slice(prompt.end).trim().length > 0) return;
+        splitAt(line.startOffset);
+        waitingForPrompt = false;
+        clearSubmittedLine();
+      }),
+    );
+  }
+
+  // Rule 2: buffer switch. Close on entering alternate; ignore return.
+  disposables.push(
+    term.buffer.onBufferChange((buf) => {
+      if (buf.type === "alternate") closeCurrent();
+    }),
+  );
+
+  // Rule 4: hard reset. RIS (ESC c — from `reset` / `tput reset`) wipes the
+  // buffer, but xterm does NOT dispose our markers (verified: marker.isDisposed
+  // stays false), so every block would ghost over the cleared screen — and its
+  // consumers (染色 / selection halo / fold) with it. Drop them all. Return false
+  // so xterm still performs the reset. Plain `clear` (ED3 + ED2) already disposes
+  // markers via the ED2 leg, so it needs no handler here.
+  disposables.push(
+    term.parser.registerEscHandler({ final: "c" }, () => {
+      resetAll();
+      return false;
+    }),
+  );
+
+  return {
+    get blocks() { return blocks; },
+    onChange(fn) {
+      listeners.add(fn);
+      return { dispose: () => listeners.delete(fn) };
+    },
+    dispose() {
+      disposables.forEach(d => d.dispose());
+      clearSubmittedLine();
+      // 用快照迭代：start.dispose() 的 onDispose 会 splice blocks，
+      // 直接 forEach(blocks) 会跳过后续 index，导致 marker 泄漏。
+      const snapshot = blocks.slice();
+      blocks.length = 0;
+      for (const b of snapshot) {
+        b.start.dispose();
+        b.end?.dispose();
+      }
+      listeners.clear();
+    },
+  };
+}

@@ -1,0 +1,540 @@
+import { describe, it, expect } from "vitest";
+import { Terminal } from "@xterm/xterm";
+import { createCommandBlockTracker } from "./command-blocks.ts";
+
+/* ─────────────────────────────────────────────────────────────
+ * Fake xterm.js Terminal — 实现 createCommandBlockTracker 用到的
+ * 最小子集。够测，不模拟真实滚动行为。
+ * ───────────────────────────────────────────────────────────── */
+
+type BufType = "normal" | "alternate";
+
+interface FakeMarker {
+  id: number;
+  disposed: boolean;
+  readonly isDisposed: boolean;
+  /** Which buffer this marker was registered on — alt markers die on alt exit. */
+  createdOn: BufType;
+  onDispose(fn: () => void): { dispose: () => void };
+  dispose(): void;
+}
+
+function fakeTerm() {
+  let bufferType: BufType = "normal";
+  // Set 而非 Array：disposer 能 O(1) 拆订阅，且能在测试里观察"还剩几个 listener"。
+  const dataListeners = new Set<(s: string) => void>();
+  const bufferChangeListeners = new Set<(b: { type: BufType }) => void>();
+  // ESC handlers keyed by final byte (RIS = 'c'). Stored so the test can both
+  // trigger them and assert they get unsubscribed on dispose() (leak probe).
+  const escHandlers = new Set<{ final: string; handler: () => boolean | void }>();
+  let markerCounter = 0;
+  const allMarkers: FakeMarker[] = [];
+
+  const makeMarker = (): FakeMarker => {
+    const onDisposeFns: Array<() => void> = [];
+    const m: FakeMarker = {
+      id: ++markerCounter,
+      disposed: false,
+      createdOn: bufferType,
+      get isDisposed() { return this.disposed; },
+      onDispose(fn) {
+        onDisposeFns.push(fn);
+        return { dispose: () => {} };
+      },
+      dispose() {
+        if (this.disposed) return;
+        this.disposed = true;
+        onDisposeFns.forEach((f) => f());
+      },
+    };
+    allMarkers.push(m);
+    return m;
+  };
+
+  const term = {
+    onData(fn: (s: string) => void) {
+      dataListeners.add(fn);
+      return { dispose: () => dataListeners.delete(fn) };
+    },
+    buffer: {
+      get active() {
+        return { type: bufferType };
+      },
+      onBufferChange(fn: (b: { type: BufType }) => void) {
+        bufferChangeListeners.add(fn);
+        return { dispose: () => bufferChangeListeners.delete(fn) };
+      },
+    },
+    registerMarker(_line: number): FakeMarker | undefined {
+      return makeMarker();
+    },
+    parser: {
+      registerEscHandler(id: { final: string }, handler: () => boolean | void) {
+        const entry = { final: id.final, handler };
+        escHandlers.add(entry);
+        return { dispose: () => escHandlers.delete(entry) };
+      },
+    },
+  };
+
+  return {
+    term: term as unknown as Parameters<typeof createCommandBlockTracker>[0],
+    pushData(s: string) {
+      dataListeners.forEach((f) => f(s));
+    },
+    setBuffer(t: BufType) {
+      const leavingAlt = bufferType === "alternate" && t === "normal";
+      bufferType = t;
+      // Real xterm tears down the alternate buffer on exit, disposing any
+      // marker registered while it was active (see the real-xterm contract
+      // test below). Model that so the tracker is exercised against reality.
+      if (leavingAlt) {
+        for (const m of allMarkers) {
+          if (m.createdOn === "alternate" && !m.disposed) m.dispose();
+        }
+      }
+      bufferChangeListeners.forEach((f) => f({ type: t }));
+    },
+    /** Fire all ESC handlers registered for `final` (RIS = 'c'). */
+    triggerEsc(final: string) {
+      for (const e of escHandlers) if (e.final === final) e.handler();
+    },
+    markers: allMarkers,
+    listenerCount: () =>
+      dataListeners.size + bufferChangeListeners.size + escHandlers.size,
+  };
+}
+
+describe("createCommandBlockTracker — Enter opens blocks", () => {
+  it("starts with no blocks", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    expect(t.blocks.length).toBe(0);
+    t.dispose();
+  });
+
+  it("Enter in normal buffer opens a new block", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r");
+    expect(t.blocks.length).toBe(1);
+    expect(t.blocks[0].end).toBeNull();
+    expect(typeof t.blocks[0].color).toBe("string");
+    expect(t.blocks[0].color).toMatch(/^hsl\(/);
+    t.dispose();
+  });
+
+  it("multiple Enters open multiple blocks with distinct colors", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r");
+    f.pushData("\r");
+    f.pushData("\r");
+    expect(t.blocks.length).toBe(3);
+    const colors = t.blocks.map((b) => b.color);
+    expect(new Set(colors).size).toBe(3);
+    // 第一块被 close（end 不为空），第三块还开着
+    expect(t.blocks[0].end).not.toBeNull();
+    expect(t.blocks[1].end).not.toBeNull();
+    expect(t.blocks[2].end).toBeNull();
+    t.dispose();
+  });
+
+  it("ids increment monotonically", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r\r");
+    expect(t.blocks[1].id).toBeGreaterThan(t.blocks[0].id);
+    t.dispose();
+  });
+
+  it("non-Enter chars do not open blocks", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("ls -la");
+    expect(t.blocks.length).toBe(0);
+    t.dispose();
+  });
+
+  it("Enter in alternate buffer is ignored", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.setBuffer("alternate");
+    f.pushData("\r");
+    f.pushData("\r");
+    expect(t.blocks.length).toBe(0);
+    t.dispose();
+  });
+
+  it("paste of multi-line input opens one block per \\r", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("first\rsecond\rthird\r");
+    expect(t.blocks.length).toBe(3);
+    t.dispose();
+  });
+});
+
+describe("createCommandBlockTracker — buffer switch closes current", () => {
+  it("entering alternate buffer closes the current open block", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r");
+    expect(t.blocks[0].end).toBeNull();
+    f.setBuffer("alternate");
+    expect(t.blocks[0].end).not.toBeNull();
+    t.dispose();
+  });
+
+  it("returning to normal buffer does NOT auto-open a block", () => {
+    // 规则2：alternate→normal 不动作，必须用户再敲 Enter
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r");
+    f.setBuffer("alternate");
+    f.setBuffer("normal");
+    expect(t.blocks.length).toBe(1);
+    expect(t.blocks[0].end).not.toBeNull();
+    t.dispose();
+  });
+
+  // 回归：less/vim/top 进出后，块的 end marker 必须仍然有效。
+  // 之前 closeCurrent 在 alt 缓冲区里 registerMarker，退出 alt 时该 marker 被
+  // 销毁 → 块变"未结束"，blockRects 把它一路画到光标，多次进出叠加成灰。
+  it("survives an alt-buffer round-trip with a still-valid end marker", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r"); // 启动 less 的命令块
+    f.setBuffer("alternate"); // less 接管 → Rule 2 关闭该块
+    f.setBuffer("normal"); // 退出 less → alt 缓冲区被拆除
+    const b = t.blocks[0];
+    expect(b.end).not.toBeNull();
+    expect(b.end!.isDisposed).toBe(false); // 修复前：end 在 alt 上被销毁 → true
+    t.dispose();
+  });
+
+  it("repeated alt-buffer sessions each keep a valid end marker", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    for (let i = 0; i < 3; i++) {
+      f.pushData("\r");
+      f.setBuffer("alternate");
+      f.setBuffer("normal");
+    }
+    // 每个块都应正常收尾，没有"未结束"的块拖到光标造成叠加。
+    for (const b of t.blocks) {
+      expect(b.end).not.toBeNull();
+      expect(b.end!.isDisposed).toBe(false);
+    }
+    t.dispose();
+  });
+});
+
+describe("createCommandBlockTracker — onChange notifications", () => {
+  it("fires onChange on each block open", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    let calls = 0;
+    t.onChange(() => calls++);
+    f.pushData("\r");
+    f.pushData("\r");
+    // 每次 Enter: closeCurrent (无 emit) + openNew (emit)
+    expect(calls).toBe(2);
+    t.dispose();
+  });
+
+  it("onChange unsubscribe stops further calls", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    let calls = 0;
+    const sub = t.onChange(() => calls++);
+    f.pushData("\r");
+    sub.dispose();
+    f.pushData("\r");
+    expect(calls).toBe(1);
+    t.dispose();
+  });
+});
+
+describe("createCommandBlockTracker — marker disposal", () => {
+  it("disposing a start marker drops the block from the list", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r");
+    f.pushData("\r");
+    expect(t.blocks.length).toBe(2);
+    // 第一块的 start marker 触发 dispose（模拟 scrollback 修剪）
+    t.blocks[0].start.dispose();
+    expect(t.blocks.length).toBe(1);
+    t.dispose();
+  });
+
+  it("dispose() empties the blocks array", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r");
+    f.pushData("\r");
+    expect(t.blocks.length).toBe(2);
+    t.dispose();
+    expect(t.blocks.length).toBe(0);
+  });
+
+  /// 回归 net：dispose() 必须 dispose 所有 block 的 marker，不能因为
+  /// onDispose 回调 splice blocks 而漏掉后续 block。
+  it("dispose() disposes markers of all blocks, not just the first", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r");
+    f.pushData("\r");
+    const totalBefore = f.markers.length;
+    expect(totalBefore).toBeGreaterThan(0);
+    t.dispose();
+    for (const m of f.markers) {
+      expect(m.disposed).toBe(true);
+    }
+  });
+
+  it("dispose() unsubscribes onData / onBufferChange listeners", () => {
+    // 不止断言"看不到副作用"——直接验证 listener 集合被清掉。
+    // 这是真 leak 探针：tracker 漏不取消订阅会让 fake term 的 Set size 不归零。
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    expect(f.listenerCount()).toBeGreaterThan(0);
+    t.dispose();
+    expect(f.listenerCount()).toBe(0);
+  });
+
+  it("after dispose() further pushData / setBuffer cause no state change", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r");
+    t.dispose();
+    let onChangeCalls = 0;
+    t.onChange(() => onChangeCalls++);
+    f.pushData("\r"); // 不应再开 block
+    f.setBuffer("alternate");
+    f.setBuffer("normal");
+    expect(t.blocks.length).toBe(0);
+    expect(onChangeCalls).toBe(0);
+  });
+});
+
+describe("createCommandBlockTracker — hard reset (RIS)", () => {
+  it("RIS (ESC c) drops every block and fires onChange once", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    f.pushData("\r");
+    f.pushData("\r");
+    f.pushData("\r");
+    expect(t.blocks.length).toBe(3);
+    let changes = 0;
+    t.onChange(() => changes++);
+    f.triggerEsc("c");
+    expect(t.blocks.length).toBe(0);
+    expect(changes).toBe(1); // single emit, not one-per-block
+    t.dispose();
+  });
+
+  it("RIS on an empty tracker is a no-op (no spurious onChange)", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    let changes = 0;
+    t.onChange(() => changes++);
+    f.triggerEsc("c");
+    expect(changes).toBe(0);
+    t.dispose();
+  });
+
+  it("dispose() unsubscribes the RIS handler too", () => {
+    const f = fakeTerm();
+    const t = createCommandBlockTracker(f.term);
+    // listenerCount now folds in escHandlers — must drop to zero on dispose.
+    expect(f.listenerCount()).toBeGreaterThan(0);
+    t.dispose();
+    expect(f.listenerCount()).toBe(0);
+  });
+});
+
+// Real xterm guards the contract Rule 3 depends on: writing RIS (\x1bc) actually
+// invokes a {final:'c'} ESC handler (and that markers are NOT disposed, which is
+// WHY the tracker must drop blocks itself). Driving onData/blocks needs real user
+// input (no DOM here), so the end-to-end "blocks cleared" is covered by the
+// fakeTerm tests above (handler → resetAll); this proves the xterm half.
+describe("createCommandBlockTracker — hard reset (real xterm contract)", () => {
+  const writeP = (term: Terminal, d: string) =>
+    new Promise<void>((r) => term.write(d, () => r()));
+
+  it("RIS (\\x1bc) invokes a {final:'c'} ESC handler; markers survive it", async () => {
+    const term = new Terminal({ allowProposedApi: true, scrollback: 1000 });
+    let fired = 0;
+    const disp = term.parser.registerEscHandler({ final: "c" }, () => {
+      fired++;
+      return false; // observe-only — xterm still performs the reset
+    });
+    await writeP(term, "line1\r\nline2\r\n");
+    const marker = term.registerMarker(0);
+    const cursorYBefore = term.buffer.active.cursorY;
+    expect(cursorYBefore).toBeGreaterThan(0); // cursor moved down past the writes
+    await writeP(term, "\x1bc"); // RIS
+    expect(fired).toBe(1); // our handler ran
+    expect(marker?.isDisposed).toBe(false); // xterm did NOT clean up the marker
+    // returning false did NOT swallow the reset: RIS still ran fullReset(),
+    // homing the cursor. (If our handler returned true this would stay > 0 —
+    // i.e. we'd have broken `reset`.)
+    expect(term.buffer.active.cursorY).toBe(0);
+    disp.dispose();
+    term.dispose();
+  });
+
+  // Proves the assumption behind closeCurrent's alt-buffer branch (and the
+  // fakeTerm model above): a marker registered while the ALTERNATE buffer is
+  // active is disposed when that buffer is torn down on exit — so end markers
+  // must NOT be registered there.
+  it("a marker registered on the alternate buffer is disposed on return to normal", async () => {
+    const term = new Terminal({ allowProposedApi: true, scrollback: 1000 });
+    await writeP(term, "line1\r\nline2\r\nline3\r\n");
+    const normalMarker = term.registerMarker(0);
+    expect(term.buffer.active.type).toBe("normal");
+
+    await writeP(term, "\x1b[?1049h"); // enter alt buffer (less/vim/top)
+    expect(term.buffer.active.type).toBe("alternate");
+    const altMarker = term.registerMarker(0);
+
+    await writeP(term, "\x1b[?1049l"); // leave alt buffer
+    expect(term.buffer.active.type).toBe("normal");
+
+    expect(normalMarker?.isDisposed).toBe(false); // normal-buffer marker survives
+    expect(altMarker?.isDisposed).toBe(true); // alt-buffer marker is gone
+    term.dispose();
+  });
+});
+
+describe("createCommandBlockTracker — prompt mode", () => {
+  const writeParsedP = (term: Terminal, data: string) =>
+    new Promise<void>((resolve) => {
+      const disposable = term.onWriteParsed(() => {
+        disposable.dispose();
+        resolve();
+      });
+      term.write(data);
+    });
+
+  it("opens the first block when the initial shell prompt is parsed", async () => {
+    const term = new Terminal({ allowProposedApi: true, scrollback: 1000 });
+    const tracker = createCommandBlockTracker(term, "prompt");
+
+    await writeParsedP(term, "alice@host:~$ ");
+
+    expect(tracker.blocks).toHaveLength(1);
+    expect(tracker.blocks[0].start.line).toBe(0);
+    expect(tracker.blocks[0].end).toBeNull();
+    tracker.dispose();
+    term.dispose();
+  });
+
+  it("starts the next block only when a prompt returns after Enter", async () => {
+    const term = new Terminal({ allowProposedApi: true, scrollback: 1000 });
+    const tracker = createCommandBlockTracker(term, "prompt");
+    await writeParsedP(term, "alice@host:~$ ");
+    await writeParsedP(term, "ls");
+
+    term.input("\r");
+    await writeParsedP(term, "\r\nfile-a\r\nalice@host:~$ ");
+
+    expect(tracker.blocks).toHaveLength(2);
+    expect(tracker.blocks[0].end?.line).toBe(1);
+    expect(tracker.blocks[1].start.line).toBe(2);
+    expect(tracker.blocks[1].end).toBeNull();
+    tracker.dispose();
+    term.dispose();
+  });
+
+  it("does not re-detect the submitted prompt line after an empty Enter", async () => {
+    const term = new Terminal({ allowProposedApi: true, scrollback: 1000 });
+    const tracker = createCommandBlockTracker(term, "prompt");
+    await writeParsedP(term, "alice@host:~$ ");
+
+    term.input("\r");
+    await writeParsedP(term, "\x1b[0m");
+
+    expect(tracker.blocks).toHaveLength(1);
+    await writeParsedP(term, "\r\nalice@host:~$ ");
+    expect(tracker.blocks).toHaveLength(2);
+    tracker.dispose();
+    term.dispose();
+  });
+
+  it("rejects prompt-looking command output after Enter", async () => {
+    const term = new Terminal({ allowProposedApi: true, scrollback: 1000 });
+    const tracker = createCommandBlockTracker(term, "prompt");
+    await writeParsedP(term, "alice@host:~$ ");
+    await writeParsedP(term, "printf fake");
+
+    term.input("\r");
+    await writeParsedP(term, "\r\n$ prompt-looking output");
+
+    expect(tracker.blocks).toHaveLength(1);
+    await writeParsedP(term, "\r\nalice@host:~$ ");
+    expect(tracker.blocks).toHaveLength(2);
+    tracker.dispose();
+    term.dispose();
+  });
+
+  it("anchors a soft-wrapped prompt at its first visual row", async () => {
+    const term = new Terminal({ cols: 12, rows: 5, allowProposedApi: true, scrollback: 1000 });
+    const tracker = createCommandBlockTracker(term, "prompt");
+
+    await writeParsedP(term, "alice@host:~$ ");
+
+    expect(term.buffer.active.cursorY).toBe(1);
+    expect(tracker.blocks).toHaveLength(1);
+    expect(tracker.blocks[0].start.line).toBe(0);
+    tracker.dispose();
+    term.dispose();
+  });
+
+  it("does not scan output again until the user submits Enter", async () => {
+    const term = new Terminal({ allowProposedApi: true, scrollback: 1000 });
+    const tracker = createCommandBlockTracker(term, "prompt");
+    await writeParsedP(term, "alice@host:~$ ");
+
+    await writeParsedP(term, "\r\n$ prompt-looking output");
+
+    expect(tracker.blocks).toHaveLength(1);
+    tracker.dispose();
+    term.dispose();
+  });
+
+  it("recognizes a fresh prompt after a hard terminal reset", async () => {
+    const term = new Terminal({ allowProposedApi: true, scrollback: 1000 });
+    const tracker = createCommandBlockTracker(term, "prompt");
+    await writeParsedP(term, "alice@host:~$ ");
+
+    await writeParsedP(term, "\x1bc");
+    await writeParsedP(term, "alice@host:~$ ");
+
+    expect(tracker.blocks).toHaveLength(1);
+    expect(tracker.blocks[0].start.line).toBe(0);
+    tracker.dispose();
+    term.dispose();
+  });
+
+  it("resumes prompt splitting after an alternate-buffer command exits", async () => {
+    const term = new Terminal({ allowProposedApi: true, scrollback: 1000 });
+    const tracker = createCommandBlockTracker(term, "prompt");
+    await writeParsedP(term, "alice@host:~$ ");
+    await writeParsedP(term, "less file");
+
+    term.input("\r");
+    await writeParsedP(term, "\r\n\x1b[?1049hpage one");
+    expect(term.buffer.active.type).toBe("alternate");
+    await writeParsedP(term, "\x1b[?1049l\r\nalice@host:~$ ");
+
+    expect(term.buffer.active.type).toBe("normal");
+    expect(tracker.blocks).toHaveLength(2);
+    expect(tracker.blocks[0].end).toBe(tracker.blocks[0].start);
+    expect(tracker.blocks[1].end).toBeNull();
+    tracker.dispose();
+    term.dispose();
+  });
+});

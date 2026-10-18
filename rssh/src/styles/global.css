@@ -1,0 +1,434 @@
+@import "@xterm/xterm/css/xterm.css";
+/* Shape implementations — each scoped under [data-shape="..."].
+   Order matters only as far as later files override earlier ones for
+   the same selector; in practice the three files are disjoint. */
+@import "./shapes/neumorphism.css";
+@import "./shapes/flat.css";
+@import "./shapes/material.css";
+
+/* ═══════════════════════════════════════════════════════
+   THEME TOKENS — single source of truth
+   These tokens are consumed by:
+     • UI components (via CSS custom properties)
+     • xterm.js (via JS store reading the same values)
+     • Shape implementations (via [data-shape="..."] selectors)
+   Default values below = "dark-neumorphism" preset.
+   ═══════════════════════════════════════════════════════ */
+:root {
+  /* ── Palette: surfaces ──────────────────────────────── */
+  --bg:           #2B2D3A;
+  --surface:      #32343F;
+  --shadow-dark:  #14161E;
+  --shadow-light: #454A5E;
+  --divider:      #3C3F50;
+
+  /* ── Palette: text ──────────────────────────────────── */
+  --text:         #E0E5EC;
+  --text-sub:     #A0A8BB;
+  --text-dim:     #6B7A99;
+
+  /* ── Palette: brand & status ────────────────────────── */
+  --accent:       #4A6CF7;
+  --accent-soft:  rgba(74,108,247,0.15);
+  --error:        #E05555;
+  --success:      #4CB88A;
+  --warning:      #DDAA33;
+  --magenta:      #9B72E4;
+  --purple:       #A855F7;       /* AI panel accent */
+
+  /* ── Palette: constants (do not theme) ──────────────── */
+  --white:        #FFFFFF;
+  --black:        #000000;
+
+  /* ── Alpha levels (semantic transparency) ───────────── */
+  --alpha-faint:   8%;
+  --alpha-soft:    15%;
+  --alpha-medium:  30%;
+  --alpha-strong:  50%;
+
+  /* ── Overlay backdrops (modal/dialog scrims) ────────── */
+  --overlay-soft:   color-mix(in srgb, var(--black) 40%, transparent);
+  --overlay-strong: color-mix(in srgb, var(--black) 50%, transparent);
+
+  /* Floating-popup drop shadow. --shadow-float is the raw value; two semantic
+     tokens pick it per surface type, each shape overriding as needed:
+       --shadow-popup  scrim-backed dialogs (modal, snippet picker) — the scrim
+                       separates them, so neu/flat = none, material = float.
+       --shadow-menu   free-floating context menus (no scrim) — they must lift
+                       off the content, so neu ALSO gets float; only flat (border)
+                       drops it. */
+  --shadow-float:
+      0 4px 8px color-mix(in srgb, var(--shadow-dark) 45%, transparent),
+      0 12px 28px color-mix(in srgb, var(--shadow-dark) 30%, transparent);
+  --shadow-popup: none;
+  --shadow-menu:  var(--shadow-float);
+
+  /* ── Density (padding/gap multiplier) ───────────────── */
+  /* Default = "cozy" (1.0). Compact (0.85) and comfortable (1.15)
+     are set via [data-density="..."] on <html>. */
+  --density: 1;
+
+  /* ── Spacing scale (multiplied by --density) ────────── */
+  --space-1: calc(4px  * var(--density));
+  --space-2: calc(8px  * var(--density));
+  --space-3: calc(12px * var(--density));
+  --space-4: calc(16px * var(--density));
+  --space-5: calc(20px * var(--density));
+  --space-6: calc(24px * var(--density));
+
+  /* ── Radii ──────────────────────────────────────────── */
+  --radius-xs: 4px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius:    var(--radius-md); /* alias for --radius-md, back-compat */
+
+  /* ── Layout ─────────────────────────────────────────── */
+  --topbar-h: 44px;
+
+  /* ── Elevation (semantic shadow tokens) ─────────────── */
+  /* Shape implementations override these for Flat/Material. */
+  /* offset/blur ratio ≈ 0.33 — 让"光晕"主导而不是 drop-shadow 形态。
+     classic neu 关键是阴影"抱住"元素而非"投在地上"，比例必须 < 0.4。 */
+  --elevation-low:     2px 2px 6px var(--shadow-dark), -2px -2px 6px var(--shadow-light);
+  --elevation-mid:     4px 4px 12px var(--shadow-dark), -4px -4px 12px var(--shadow-light);
+  --elevation-pressed: inset 2px 2px 6px var(--shadow-dark), inset -2px -2px 6px var(--shadow-light);
+  /* Back-compat aliases (legacy --raised/--pressed) */
+  --raised:    var(--elevation-mid);
+  --raised-sm: var(--elevation-low);
+  --pressed:   var(--elevation-pressed);
+
+  /* ── Terminal palette (xterm consumes this via JS) ──── */
+  --term-bg:     #2B2D3A;
+  --term-fg:     #E0E5EC;
+  --term-cursor: #4A6CF7;
+  --term-sel:    rgba(74,108,247,0.3);
+  /* Terminal font stack — overwritten by the theme store at init; the
+     literal only covers the pre-init frame (init is not awaited, see
+     main.ts). Concrete families first so the generic never resolves
+     locale-dependently (SimSun on zh-CN Windows); same safe-stack idiom
+     as the welcome scenes. */
+  --term-font:   Menlo, Consolas, 'Courier New', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Density modes — applied via [data-density="..."] on <html>.
+   Multiplies --density, which propagates through --space-*.
+   ═══════════════════════════════════════════════════════ */
+[data-density="compact"]     { --density: 0.85; }
+[data-density="cozy"]        { --density: 1; }
+[data-density="comfortable"] { --density: 1.15; }
+
+/* ═══════════════════════════════════════════════════════
+   Reset & Base
+   ═══════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* Terminal 内恢复选择 */
+.xterm { user-select: text; -webkit-user-select: text; }
+/* AI 对话面板内恢复选择（用户要复制 LLM 输出 / 命令文本） */
+.ai-panel, .ai-panel * { user-select: text; -webkit-user-select: text; }
+#app {
+  height: 100%;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Surface Semantics — components consume these classes.
+   Shape implementations (neumorphism/flat/material)
+   override the visual style without touching components.
+   Legacy .neu-* names kept as aliases for back-compat.
+   ═══════════════════════════════════════════════════════ */
+.surface-raised    { box-shadow: var(--elevation-mid);     border-radius: var(--radius); background: var(--bg); }
+.surface-raised-sm { box-shadow: var(--elevation-low);     border-radius: var(--radius-sm); background: var(--bg); }
+.surface-pressed   { box-shadow: var(--elevation-pressed); border-radius: var(--radius); background: var(--bg); }
+.surface-flat      { border-radius: var(--radius); background: var(--bg); }
+
+/* Floating popup surfaces. Same fill/radius; the shadow token differs by whether
+   a scrim backs them (.surface-popup: modal, picker) or not (.surface-menu:
+   context menus). No constant border — flat adds one (flat.css), like .surface-raised. */
+.surface-popup,
+.surface-menu {
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+.surface-popup { box-shadow: var(--shadow-popup); }
+.surface-menu  { box-shadow: var(--shadow-menu); }
+
+/* Legacy aliases — DO NOT use in new code. Use .surface-* above. */
+.neu-raised  { box-shadow: var(--elevation-mid);     border-radius: var(--radius); background: var(--bg); }
+.neu-sm      { box-shadow: var(--elevation-low);     border-radius: var(--radius-sm); background: var(--bg); }
+.neu-pressed { box-shadow: var(--elevation-pressed); border-radius: var(--radius); background: var(--bg); }
+.neu-flat    { border-radius: var(--radius); background: var(--bg); }
+
+/* ═══════════════════════════════════════════════════════
+   Form Elements
+   ═══════════════════════════════════════════════════════ */
+input, select, textarea {
+  background: var(--surface);
+  box-shadow: var(--pressed);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: calc(10px * var(--density)) calc(14px * var(--density));
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+}
+input::placeholder, textarea::placeholder { color: var(--text-dim); }
+select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%23A0A8BB' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 36px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+select:hover {
+  box-shadow: var(--raised-sm);
+}
+select:active {
+  box-shadow: var(--pressed);
+}
+
+label {
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Checkbox & Radio */
+input[type="checkbox"], input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: var(--pressed);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s;
+  padding: 0;
+  flex-shrink: 0;
+}
+input[type="radio"] { border-radius: 50%; }
+input[type="checkbox"]:checked, input[type="radio"]:checked {
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
+  border-color: var(--accent);
+  transform: scale(1.1);
+  outline: 3px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  outline-offset: 1px;
+}
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px; top: 2px;
+  width: 5px; height: 9px;
+  border: solid var(--white);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+input[type="radio"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px; top: 4px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--white);
+}
+
+/* Shared custom radio indicator — the 20px circle used next to a hidden
+   .radio-state input (ShellSettings local-shell picker, AiSettings provider
+   list). Base shape only; theme variants live in shapes/*.css. Bare default
+   (no shape matched) is a transparent circle. */
+.shell-radio-indicator {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 50%;
+  height: 20px;
+  width: 20px;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Switch Toggle (card-style, like Flutter verbose log)
+   ═══════════════════════════════════════════════════════ */
+.switch-card {
+  display: flex;
+  align-items: center;
+  gap: calc(12px * var(--density));
+  padding: calc(14px * var(--density)) calc(16px * var(--density));
+  background: var(--bg);
+  box-shadow: var(--raised);
+  border-radius: var(--radius);
+}
+.switch-card-body { flex: 1; }
+.switch-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.switch-card-title.on { color: var(--accent); }
+.switch-card-title.off { color: var(--text); }
+.switch-card-desc {
+  font-size: 12px;
+  color: var(--text-sub);
+  line-height: 1.4;
+}
+
+/* The toggle switch */
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+  box-shadow: none;
+  padding: 0;
+}
+.switch .slider {
+  position: absolute;
+  inset: 0;
+  background: var(--surface);
+  box-shadow: var(--pressed);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.switch .slider::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+.switch input:checked + .slider {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.switch input:checked + .slider::before {
+  transform: translateX(20px);
+  background: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Buttons
+   ═══════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(6px * var(--density));
+  padding: calc(10px * var(--density)) calc(20px * var(--density));
+  border: none;
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: var(--raised-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: box-shadow 0.13s, transform 0.1s;
+  user-select: none;
+}
+.btn:hover { box-shadow: var(--raised); }
+.btn:active { box-shadow: var(--pressed); transform: scale(0.98); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: var(--raised-sm); }
+
+.btn-accent {
+  background: var(--accent);
+  color: var(--white);
+  box-shadow: 3px 3px 8px color-mix(in srgb, var(--accent) 30%, transparent), -2px -2px 6px var(--shadow-light);
+}
+.btn-accent:hover { box-shadow: 4px 4px 12px color-mix(in srgb, var(--accent) 40%, transparent), -3px -3px 8px var(--shadow-light); }
+.btn-accent:active { box-shadow: inset 2px 2px 5px color-mix(in srgb, var(--black) 30%, transparent); }
+
+.btn-danger { color: var(--error); }
+.btn-sm { padding: calc(8px * var(--density)) calc(16px * var(--density)); font-size: 13px; font-weight: 500; }
+.btn-icon {
+  width: 34px; height: 34px; padding: 0;
+  border-radius: 50%;
+  font-size: 16px;
+}
+
+/* Footer button row for dialogs — right-aligned. Modal content uses this
+   instead of each popup re-declaring its own flex/justify-end/gap. */
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Dialog typography — title/body for confirm popups rendered inside Modal,
+   shared here for the same reason as .modal-actions. */
+.dialog-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.dialog-body { font-size: 13px; color: var(--text); line-height: 1.55; }
+
+/* ═══════════════════════════════════════════════════════
+   Cards & Sections
+   ═══════════════════════════════════════════════════════ */
+.card {
+  background: var(--bg);
+  box-shadow: var(--raised);
+  border-radius: var(--radius);
+  padding: calc(16px * var(--density));
+}
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: calc(16px * var(--density)) 0 calc(8px * var(--density));
+}
+.divider {
+  height: 1px;
+  background: var(--divider);
+  margin: calc(8px * var(--density)) 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Scrollbar
+   ═══════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--shadow-light); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Panel-resize gestures (class set by startPanelResize): iframes are separate
+   documents that swallow document-level mousemove/mouseup — without this the
+   drag freezes whenever the cursor crosses a plugin iframe. */
+body.panel-resizing iframe { pointer-events: none; }

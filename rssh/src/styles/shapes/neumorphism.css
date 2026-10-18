@@ -1,0 +1,182 @@
+/* ═══════════════════════════════════════════════════════
+   Shape: Neumorphism (default)
+   Soft dual-shadow surfaces, no border. The :root values in
+   global.css already match this — keeping the tokens declared
+   here makes the shape's identity explicit and switching back
+   from another shape works without page reload.
+   ═══════════════════════════════════════════════════════ */
+/* :root[data-shape="..."] beats plain :root in specificity (0,2,0 > 0,1,0).
+   Required because @import places this file before :root in source order,
+   so a same-specificity rule would lose. */
+:root[data-shape="neumorphism"] {
+    --elevation-low:
+        -6px -3px 6px var(--shadow-light),
+        6px 3px 9px var(--shadow-dark);
+    --elevation-mid:
+        -8px -4px 8px var(--shadow-light),
+        8px 4px 12px var(--shadow-dark);
+    --elevation-pressed:
+        inset 3px 2px 3px var(--shadow-dark),
+        inset -3px -2px 3px var(--shadow-light);
+    /* Scrim-backed dialogs get NO shadow under neu — the puffy dual-shadow reads
+       badly on a floating card, and the scrim already separates them. Context
+       menus have no scrim, so they borrow material's clean drop shadow to lift. */
+    --shadow-popup: none;
+    --shadow-menu:  var(--shadow-float);
+}
+
+/* Accent button keeps its glow. */
+[data-shape="neumorphism"] .btn-accent {
+    box-shadow:
+        3px 3px 8px color-mix(in srgb, var(--accent) 30%, transparent),
+        -2px -2px 6px var(--shadow-light);
+}
+[data-shape="neumorphism"] .btn-accent:hover {
+    box-shadow:
+        4px 4px 12px color-mix(in srgb, var(--accent) 40%, transparent),
+        -3px -3px 8px var(--shadow-light);
+}
+
+/* 选中 tab：陷入感（pressed inset）。idle/hover 由组件 scoped CSS 接管，不动。
+   :root 前缀把 specificity 拉到 (0,4,0) 盖过 Svelte 加 hash 后的 .sb-item.active. */
+:root[data-shape="neumorphism"] .sb-item.active {
+    box-shadow: var(--elevation-pressed);
+}
+
+/* Toggle switch 复刻参考的两层 neu 设计：
+   - track (.slider)：圆角 + overflow:hidden + "外凸 + 内凹"复合阴影（边缘高光感）
+   - indicator (.slider::before)：宽度 200% 的色块，在 track 内左右平移
+     未选中 translateX(-75%) / 选中 translateX(25%)，靠 indicator 位置而非圆球表达状态
+   全局 .switch .slider 默认是单调 inset + 圆球 thumb，这里完全覆盖。
+
+   阴影按 rssh 44×24（参考是 60×30）缩放比例 ~75%；用 token 替换硬编码颜色，
+   保留 affordance：indicator 在 checked 时染 accent tint，让"开启"有色彩反馈。 */
+:root[data-shape="neumorphism"] .switch .slider {
+    background: var(--surface);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+        -6px -3px 6px var(--shadow-light),
+        6px 3px 9px var(--shadow-dark),
+        3px 2px 3px var(--shadow-dark) inset,
+        -3px -2px 3px var(--shadow-light) inset;
+}
+:root[data-shape="neumorphism"] .switch .slider::before {
+    /* 重写圆球 thumb → 200% 宽 indicator */
+    width: 200%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    background: var(--surface);
+    border-radius: 12px;
+    box-shadow:
+        -6px -3px 6px var(--shadow-light),
+        6px 3px 9px var(--shadow-dark);
+    transform: translate3d(-75%, 0, 0);
+    transition: transform 0.4s cubic-bezier(0.85, 0.05, 0.18, 1.35),
+                background 0.4s;
+}
+:root[data-shape="neumorphism"] .switch input:checked + .slider {
+    /* 不再用 accent tint 染 track —— 状态切换交给 indicator 滑动 + 染色 */
+    background: var(--surface);
+}
+:root[data-shape="neumorphism"] .switch input:checked + .slider::before {
+    transform: translate3d(25%, 0, 0);
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+}
+
+/* Checkbox / radio —— 复刻 ShellSettings 的 uiverse neu radio 视觉到全局：
+   三层阴影（外圈 raised + 内圈 reversed well + 凸起盖板 ::after），
+   :checked 时盖板缩小+下移+淡出露出底下的"井"。
+   覆盖 global.css 默认的"实色 accent 块 + 白勾"。 */
+:root[data-shape="neumorphism"] input[type="checkbox"],
+:root[data-shape="neumorphism"] input[type="radio"] {
+    background: var(--surface);
+    box-shadow:
+        -5px -3px 5px 0px var(--shadow-light),
+        5px 3px 8px 0px var(--shadow-dark);
+    border-color: transparent;
+    overflow: hidden;
+}
+:root[data-shape="neumorphism"] input[type="checkbox"]::before,
+:root[data-shape="neumorphism"] input[type="checkbox"]::after,
+:root[data-shape="neumorphism"] input[type="radio"]::before,
+:root[data-shape="neumorphism"] input[type="radio"]::after {
+    content: "";
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    height: 80%;
+    width: 80%;
+    border-radius: inherit;
+    /* 清掉 global.css 默认 ::after 的 checkmark / dot 样式 */
+    border: none;
+    transform: none;
+}
+:root[data-shape="neumorphism"] input[type="checkbox"]::before,
+:root[data-shape="neumorphism"] input[type="radio"]::before {
+    box-shadow:
+        -3px -1.5px 3px 0px var(--shadow-dark),
+        3px 1.5px 5px 0px var(--shadow-light);
+}
+:root[data-shape="neumorphism"] input[type="checkbox"]::after,
+:root[data-shape="neumorphism"] input[type="radio"]::after {
+    background-color: var(--surface);
+    box-shadow:
+        -3px -1.5px 3px 0px var(--shadow-light),
+        3px 1.5px 5px 0px var(--shadow-dark);
+    transform: scale3d(1, 1, 1);
+    transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out;
+}
+:root[data-shape="neumorphism"] input[type="checkbox"]:checked,
+:root[data-shape="neumorphism"] input[type="radio"]:checked {
+    background: var(--accent);
+    box-shadow:
+        -5px -3px 5px 0px var(--shadow-light),
+        5px 3px 8px 0px var(--shadow-dark);
+    border-color: transparent;
+}
+:root[data-shape="neumorphism"] input[type="checkbox"]:checked::after,
+:root[data-shape="neumorphism"] input[type="radio"]:checked::after {
+    transform: scale3d(0.975, 0.975, 1) translate3d(0, 10%, 0);
+    opacity: 0;
+}
+
+/* Custom radio indicator (.shell-radio-indicator) —— neu variant: three
+   circular shadow layers (outer raised + inner reversed well + raised lid
+   ::after); :checked shrinks+sinks+fades the lid to reveal the well.
+   Checked state hooks the sibling label so any hidden radio + label pair
+   picks it up. */
+:root[data-shape="neumorphism"] .shell-radio-indicator {
+    box-shadow:
+        -5px -3px 5px 0px var(--shadow-light),
+        5px 3px 8px 0px var(--shadow-dark);
+}
+:root[data-shape="neumorphism"] .shell-radio-indicator::before,
+:root[data-shape="neumorphism"] .shell-radio-indicator::after {
+    content: "";
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    height: 80%;
+    width: 80%;
+    border-radius: 50%;
+}
+:root[data-shape="neumorphism"] .shell-radio-indicator::before {
+    box-shadow:
+        -3px -1.5px 3px 0px var(--shadow-dark),
+        3px 1.5px 5px 0px var(--shadow-light);
+}
+:root[data-shape="neumorphism"] .shell-radio-indicator::after {
+    background-color: var(--surface);
+    box-shadow:
+        -3px -1.5px 3px 0px var(--shadow-light),
+        3px 1.5px 5px 0px var(--shadow-dark);
+    transform: scale3d(1, 1, 1);
+    transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out;
+}
+:root[data-shape="neumorphism"] input[type="radio"]:checked ~ label .shell-radio-indicator::after {
+    transform: scale3d(0.975, 0.975, 1) translate3d(0, 10%, 0);
+    opacity: 0;
+}
+
