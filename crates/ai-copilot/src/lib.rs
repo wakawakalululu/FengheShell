@@ -19,6 +19,7 @@
 
 pub mod audit;
 pub mod blocks;
+pub mod completion;
 pub mod error;
 pub mod llm;
 pub mod redact;

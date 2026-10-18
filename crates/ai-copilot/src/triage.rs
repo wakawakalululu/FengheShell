@@ -29,6 +29,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 use crate::blocks::CommandBlock;
+use crate::completion::CompletionCache;
 use crate::error::AppResult;
 use crate::llm::{
     build_client, ChatDelta, ChatMessage, ChatRequest, ChatResponse, DeltaSink, LlmClient,
@@ -519,6 +520,8 @@ pub struct TriageEngine {
     /// 宿主持有同一个开关：置位后引擎在下一个回合边界退出，客户端也在下一个
     /// 流式分块处放弃请求（用户点了「停止」）。
     cancel: Arc<AtomicBool>,
+    /// 补全层的进程内缓存（可选）。命中时完全不发网络请求。
+    completion_cache: Option<Arc<CompletionCache>>,
 }
 
 impl TriageEngine {
@@ -530,6 +533,7 @@ impl TriageEngine {
             runtime,
             redactor: IndexedRedactor::builtin(),
             cancel: Arc::new(AtomicBool::new(false)),
+            completion_cache: None,
         })
     }
 
@@ -542,6 +546,12 @@ impl TriageEngine {
     /// 交给宿主一个中断开关：置位后这次 ask() 会尽快结束并返回 `llm_cancelled`。
     pub fn with_cancel(mut self, cancel: Arc<AtomicBool>) -> Self {
         self.cancel = cancel;
+        self
+    }
+
+    /// 接上补全缓存：同一个（模型, 前缀）在 TTL 内只问模型一次。
+    pub fn with_completion_cache(mut self, cache: Arc<CompletionCache>) -> Self {
+        self.completion_cache = Some(cache);
         self
     }
 
@@ -574,9 +584,20 @@ impl TriageEngine {
             max_tokens: 64,
             cancel: Some(self.cancel.clone()),
         };
+        // 缓存命中：连请求都不发。scope 带上模型与端点，换配置不会串味。
+        let scope = format!("{}@{}", self.cfg.model, self.cfg.endpoint);
+        if let Some(cache) = &self.completion_cache {
+            if let Some(cached) = cache.get(&scope, prefix) {
+                return Ok(cached);
+            }
+        }
         let noop: DeltaSink = Arc::new(|_| {});
         let resp = self.client.chat(req, noop).await?;
-        Ok(clean_completion(&resp.text, prefix))
+        let completion = clean_completion(&resp.text, prefix);
+        if let Some(cache) = &self.completion_cache {
+            cache.insert(&scope, prefix, completion.clone());
+        }
+        Ok(completion)
     }
 
     /// 跑一轮完整诊断。
@@ -1073,6 +1094,7 @@ mod tests {
             runtime,
             redactor: IndexedRedactor::builtin(),
             cancel: Arc::new(AtomicBool::new(false)),
+            completion_cache: None,
         }
     }
 
@@ -1131,6 +1153,20 @@ mod tests {
         // 实时推送至少两帧：发布计划 + 推进一次。
         let frames = seen.lock().unwrap().len();
         assert!(frames >= 2, "计划变化要实时推给 UI，实际 {frames} 帧");
+    }
+
+    #[test]
+    fn completion_cache_key_is_scoped_per_model_and_endpoint() {
+        let cache = CompletionCache::new();
+        let scope = "gpt-4o-mini@https://api.openai.com/v1";
+        assert_eq!(cache.get(scope, "ps aux"), None);
+        cache.insert(scope, "ps aux", " --sort=-%cpu".into());
+        // 命中：同一个（模型, 端点, 前缀）不再问模型。
+        assert_eq!(cache.get(scope, "ps aux"), Some(" --sort=-%cpu".into()));
+        // 换模型和换端点各自隔离。
+        assert_eq!(cache.get("other-model@https://api.openai.com/v1", "ps aux"), None);
+        assert_eq!(cache.get("gpt-4o-mini@http://localhost:11434/v1", "ps aux"), None);
+        assert_eq!(cache.len(), 1);
     }
 
     #[test]

@@ -80,6 +80,7 @@ Agent 模式会先用 `set_plan` 工具把计划发布成一份**清单**（最�
 - 每次输入变化都会作废上一次响应（序号守卫），旧建议不会盖到新输入上
 
 [object Object]
+[object Object]
 ## 上下文是怎么抓的
 
 
@@ -241,6 +242,7 @@ suggestion without losing focus.
 - Every keystroke invalidates the previous response (sequence guard), so a stale
   suggestion can never be painted over new input
 
+[object Object]
 [object Object]
 ## Context capture
 

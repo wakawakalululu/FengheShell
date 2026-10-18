@@ -392,7 +392,9 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
             core.runtime.spawn(async move {
                 // 输入停顿 400ms 再发，避免每敲一个字符都打一次模型。
                 tokio::time::sleep(Duration::from_millis(400)).await;
-                let suggestion = match TriageEngine::new(cfg, Arc::new(CompletionOnlyRuntime)) {
+                let suggestion = match TriageEngine::new(cfg, Arc::new(CompletionOnlyRuntime))
+                    .map(|e| e.with_completion_cache(completion_cache()))
+                {
                     Ok(engine) => {
                         let ctx = CompletionContext {
                             recent_commands,
@@ -557,6 +559,15 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
             redaction: bool,
             auto_run: bool,
         | {
+            // 换模型/端点后的旧补全不该继续命中，先记下原值用于比较。
+            let before = {
+                let s = store.borrow();
+                (
+                    s.ai_protocol().to_string(),
+                    s.ai_endpoint().to_string(),
+                    s.ai_model().to_string(),
+                )
+            };
             {
                 let mut s = store.borrow_mut();
                 s.set_ai_settings(
@@ -568,6 +579,16 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
                     auto_run,
                 );
                 let _ = s.save();
+            }
+            // 换了模型/端点/协议，缓存里的旧补全就不再适用。
+            let changed = {
+                let s = store.borrow();
+                s.ai_protocol() != before.0
+                    || s.ai_endpoint() != before.1
+                    || s.ai_model() != before.2
+            };
+            if changed {
+                clear_completion_cache();
             }
             let s = store.borrow();
             // 所有窗口共享同一份 LLM 设置，改一处要立刻同步到每个实例。

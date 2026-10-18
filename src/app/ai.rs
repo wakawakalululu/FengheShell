@@ -11,7 +11,7 @@
 
 use std::rc::Rc;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use ai_copilot::blocks::{strip_ansi, BlockParser, CommandBlock, ContextWindow, DEFAULT_CONTEXT_BYTES};
@@ -408,6 +408,19 @@ fn sync_plan_rows(rows: &mut Vec<AiMessage>, plan: &[ai_copilot::triage::PlanSte
     }
 }
 
+
+/// 补全缓存是进程级的：所有标签/窗口共用一份，命中就不再打模型。
+pub(super) fn completion_cache() -> Arc<ai_copilot::completion::CompletionCache> {
+    static CACHE: OnceLock<Arc<ai_copilot::completion::CompletionCache>> = OnceLock::new();
+    CACHE
+        .get_or_init(|| Arc::new(ai_copilot::completion::CompletionCache::new()))
+        .clone()
+}
+
+/// 清空补全缓存（改了模型/端点之后调用，避免旧结果继续命中）。
+pub(super) fn clear_completion_cache() {
+    completion_cache().clear();
+}
 
 /// 每个标签的补全状态：请求序号保证「后发先至」的响应不会覆盖新输入的结果。
 pub(super) struct CompletionState {
