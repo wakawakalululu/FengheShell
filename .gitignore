@@ -1,4 +1,6 @@
 /target
+# The vendored rssh snapshot ships a web front-end; never commit its deps.
+node_modules/
 Cargo.lock
 *.rs.bk
 .DS_Store
