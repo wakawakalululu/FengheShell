@@ -6,7 +6,7 @@ import { Theme } from "theme.slint";
 import { LabeledInput } from "widgets.slint";
 
 export struct AiMessage {
-    role: int,              // 0 用户 / 1 助手 / 2 命令卡片 / 3 错误
+    role: int,              // 0 用户 / 1 助手 / 2 命令卡片 / 3 错误 / 4 Agent 步骤
     text: string,
     card-id: string,
     cmd: string,
@@ -16,11 +16,16 @@ export struct AiMessage {
     gate: string,           // direct | fill | blocked
     disposition: string,    // pending | executed | filled | rejected | blocked
     blocked-reason: string,
+    step-failed: bool,       // role 4 的步骤是否失败
 }
 
 export component AiPanel inherits Rectangle {
     in property <[AiMessage]> messages: [];
     in property <bool> busy: false;
+    /// 工作方式：`ask` | `agent`（对应 GitHub Copilot 的对话层 / 代理层）。
+    in-out property <string> mode: "ask";
+    /// 空会话时的起手建议（Copilot 的 starter suggestions）。
+    in property <[string]> starters: [];
     in property <string> protocol: "openai-completions";
     in property <string> endpoint: "";
     in property <string> model: "";
@@ -29,6 +34,7 @@ export component AiPanel inherits Rectangle {
 
     callback close();
     callback send(string);
+    callback set-mode(string);
     callback clear();
     callback cancel();
     // 卡片按钮：绿灯 = 执行；橙灯 = 填入终端。
@@ -43,6 +49,12 @@ export component AiPanel inherits Rectangle {
     property <string> edit-key: "";
     property <bool> edit-redaction: root.redaction-enabled;
     property <bool> edit-auto: root.auto-run-readonly;
+
+    /// 连通性自检的结果文案；空串表示还没测过。
+    in-out property <string> test-status: "";
+    in-out property <bool> test-busy: false;
+    /// 用当前输入框里的配置试连一次（不落盘）。
+    callback test-connection(string, string, string, string);
 
     function card-bg(risk: string) -> brush {
         if risk == "destructive" {
@@ -73,26 +85,60 @@ export component AiPanel inherits Rectangle {
     VerticalLayout {
         spacing: 0;
 
-        // --- 标题栏 --------------------------------------------------------
+        // --- 标题栏：星标 + Copilot + Ask/Agent 模式 --------------------
         Rectangle {
-            height: 34px;
+            height: 36px;
             background: Theme.bg-panel-alt;
             HorizontalLayout {
                 padding-left: 10px;
                 padding-right: 6px;
-                spacing: 4px;
+                spacing: 6px;
                 Text {
-                    text: @tr("AI Copilot");
+                    text: "\u{E838}";   // 五芒星：Copilot 入口标识
+                    font-family: "Material Icons";
+                    font-size: 16px;
+                    color: Theme.accent;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: "Copilot";
                     color: Theme.text-primary;
                     font-size: Theme.fs-md;
                     vertical-alignment: center;
                     horizontal-stretch: 1;
                 }
-                if root.busy : Text {
-                    text: @tr("Diagnosing...");
-                    color: Theme.accent;
-                    font-size: Theme.fs-xs;
-                    vertical-alignment: center;
+                // Ask / Agent 模式切换（Copilot 的能力分层）。
+                ask-chip := Rectangle {
+                    width: 44px;
+                    height: 20px;
+                    border-radius: 10px;
+                    background: root.mode != "agent" ? Theme.accent : Theme.bg-elevated;
+                    ask-ta := TouchArea {
+                        clicked => { root.set-mode("ask"); }
+                    }
+                    Text {
+                        text: "Ask";
+                        color: root.mode != "agent" ? #ffffff : Theme.text-secondary;
+                        font-size: Theme.fs-xs;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                agent-chip := Rectangle {
+                    width: 54px;
+                    height: 20px;
+                    border-radius: 10px;
+                    background: root.mode == "agent" ? Theme.accent : Theme.bg-elevated;
+                    agent-ta := TouchArea {
+                        clicked => { root.set-mode("agent"); }
+                    }
+                    Text {
+                        text: "Agent";
+                        color: root.mode == "agent" ? #ffffff : Theme.text-secondary;
+                        font-size: Theme.fs-xs;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
                 }
                 gear-ta := TouchArea {
                     width: 24px;
@@ -214,7 +260,36 @@ export component AiPanel inherits Rectangle {
                 HorizontalLayout {
                     alignment: end;
                     spacing: 6px;
+                    // 连通性自检：用当前输入框里的配置请求一次 /models，
+                    // 不落盘、不改动已保存的设置。
+                    test-btn := Rectangle {
+                        width: 110px;
+                        height: 24px;
+                        border-radius: Theme.radius-sm;
+                        background: test-ta.has-hover ? Theme.bg-active : Theme.bg-elevated;
+                        border-width: 1px;
+                        border-color: Theme.border-subtle;
+                        test-ta := TouchArea {
+                            enabled: !root.test-busy;
+                            clicked => {
+                                root.test-connection(
+                                    root.edit-protocol,
+                                    root.edit-endpoint,
+                                    root.edit-model,
+                                    root.edit-key,
+                                );
+                            }
+                        }
+                        Text {
+                            text: root.test-busy ? @tr("Testing...") : @tr("Test connection");
+                            color: root.test-busy ? Theme.text-muted : Theme.text-secondary;
+                            font-size: Theme.fs-sm;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
                     save-btn := Rectangle {
+
                         width: 76px;
                         height: 24px;
                         border-radius: Theme.radius-sm;
@@ -241,6 +316,12 @@ export component AiPanel inherits Rectangle {
                         }
                     }
                 }
+                if root.test-status != "" : Text {
+                    text: root.test-status;
+                    wrap: word-wrap;
+                    color: Theme.text-secondary;
+                    font-size: Theme.fs-xs;
+                }
             }
         }
 
@@ -250,6 +331,39 @@ export component AiPanel inherits Rectangle {
             VerticalLayout {
                 padding: 8px;
                 spacing: 8px;
+                // 空会话时的起手建议（Copilot 的 starter suggestions）
+                if root.messages.length == 0 : VerticalLayout {
+                    spacing: 6px;
+                    alignment: start;
+                    for s in root.starters : Rectangle {
+                        border-radius: Theme.radius-md;
+                        background: starter-ta.has-hover ? Theme.bg-hover : Theme.bg-elevated;
+                        border-width: 1px;
+                        border-color: Theme.border-subtle;
+                        starter-ta := TouchArea {
+                            clicked => { root.send(s); }
+                        }
+                        HorizontalLayout {
+                            padding: 8px;
+                            spacing: 6px;
+                            Text {
+                                text: "\u{E838}";
+                                font-family: "Material Icons";
+                                font-size: 13px;
+                                color: Theme.accent;
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                text: s;
+                                wrap: word-wrap;
+                                color: Theme.text-secondary;
+                                font-size: Theme.fs-sm;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
                 for msg in root.messages : Rectangle {
                     // 命令卡片（role 2）
                     if msg.role == 2 : Rectangle {
@@ -346,17 +460,76 @@ export component AiPanel inherits Rectangle {
                             }
                         }
                     }
-                    // 用户 / 助手 / 错误文本
-                    if msg.role != 2 : Rectangle {
-                        background: msg.role == 0 ? Theme.bg-elevated : transparent;
-                        border-radius: Theme.radius-sm;
-                        HorizontalLayout {
-                            padding: 6px;
-                            Text {
-                                text: msg.text;
-                                wrap: word-wrap;
-                                color: msg.role == 3 ? Theme.danger : (msg.role == 0 ? Theme.text-primary : Theme.text-secondary);
-                                font-size: Theme.fs-sm;
+                    // 用户气泡（右对齐、带底色）—— Copilot 的提问样式
+                    if msg.role == 0 : HorizontalLayout {
+                        alignment: end;
+                        Rectangle {
+                            max-width: parent.width * 0.86;
+                            border-radius: Theme.radius-md;
+                            background: Theme.bg-elevated;
+                            HorizontalLayout {
+                                padding: 8px;
+                                Text {
+                                    text: msg.text;
+                                    wrap: word-wrap;
+                                    color: Theme.text-primary;
+                                    font-size: Theme.fs-sm;
+                                }
+                            }
+                        }
+                    }
+                    // 助手回答：左对齐、无气泡
+                    if msg.role == 1 : HorizontalLayout {
+                        alignment: start;
+                        Rectangle {
+                            max-width: parent.width;
+                            HorizontalLayout {
+                                padding-left: 2px;
+                                padding-right: 2px;
+                                Text {
+                                    text: msg.text;
+                                    wrap: word-wrap;
+                                    color: Theme.text-secondary;
+                                    font-size: Theme.fs-sm;
+                                }
+                            }
+                        }
+                    }
+                    // Agent 的步骤痕迹（工具调用），折叠成一行
+                    if msg.role == 4 : HorizontalLayout {
+                        alignment: start;
+                        spacing: 4px;
+                        Text {
+                            text: msg.step-failed ? "\u{E000}" : "\u{E5CA}";
+                            font-family: "Material Icons";
+                            font-size: 12px;
+                            color: msg.step-failed ? Theme.danger : Theme.success;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: msg.text;
+                            wrap: word-wrap;
+                            color: Theme.text-muted;
+                            font-size: Theme.fs-xs;
+                            vertical-alignment: center;
+                            overflow: elide;
+                            max-lines: 2;
+                        }
+                    }
+                    // 错误提示
+                    if msg.role == 3 : HorizontalLayout {
+                        alignment: start;
+                        Rectangle {
+                            border-radius: Theme.radius-sm;
+                            background: Theme.danger.with-alpha(0.10);
+                            HorizontalLayout {
+                                padding: 8px;
+                                Text {
+                                    text: msg.text;
+                                    wrap: word-wrap;
+                                    color: Theme.danger;
+                                    font-size: Theme.fs-sm;
+                                }
                             }
                         }
                     }

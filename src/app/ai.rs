@@ -372,6 +372,17 @@ pub(super) fn message_card(p: &ProposedCommand) -> AiMessage {
         gate: gate_tag(p.gate).into(),
         disposition: disposition_tag(p.disposition).into(),
         blocked_reason: p.blocked_reason.clone().unwrap_or_default().into(),
+        step_failed: false,
+    }
+}
+
+/// 把一次工具调用渲染成 Copilot 那样的步骤行。
+fn message_step(entry: &ai_copilot::triage::ToolLogEntry) -> AiMessage {
+    AiMessage {
+        role: ROLE_STEP,
+        text: entry.summary.clone().into(),
+        step_failed: entry.is_error,
+        ..Default::default()
     }
 }
 
@@ -380,6 +391,8 @@ pub(super) const ROLE_USER: i32 = 0;
 pub(super) const ROLE_ASSISTANT: i32 = 1;
 pub(super) const ROLE_CARD: i32 = 2;
 pub(super) const ROLE_ERROR: i32 = 3;
+/// Agent 模式下的步骤痕迹（一次工具调用一行）。
+pub(super) const ROLE_STEP: i32 = 4;
 
 /// 抽屉里追加一条纯文本消息（摘要 / 错误提示）。
 pub(super) fn push_notice(
@@ -714,6 +727,11 @@ pub(super) fn spawn_ask(runtime: &tokio::runtime::Handle, params: AskParams) {
                 if let Some(row) = v.get_mut(stream_index) {
                     row.text = outcome.text.clone().into();
                     row.role = ROLE_ASSISTANT;
+                }
+                // Agent 模式：把取证/执行/验证的每一步都留在抽屉里，
+                // 用户不必信任结论 —— 他能看到过程。
+                for entry in &outcome.tool_log {
+                    v.push(message_step(entry));
                 }
                 for proposal in &outcome.proposed {
                     upsert_card(v, message_card(proposal));

@@ -139,6 +139,7 @@ fn ai_config(store: &Rc<RefCell<ConfigStore>>, shell: ShellKind) -> CopilotConfi
         redaction_enabled: s.ai_redaction_enabled(),
         auto_run_readonly: s.ai_auto_run_readonly(),
         locale: crate::i18n::current_code().to_string(),
+        mode: s.ai_mode(),
     }
 }
 
@@ -227,8 +228,105 @@ fn cmd_has_content(cmd: &str) -> bool {
     !cmd.trim().is_empty()
 }
 
+/// 连通性自检：用本次输入（未填写则回落到已保存配置）请求一次 /models。
+/// 不写盘、不改动已保存设置，纯探测。
+fn test_connection(
+    core: &AppCore,
+    win: &Rc<AppWindow>,
+    protocol: &str,
+    endpoint: &str,
+    model: &str,
+    api_key: &str,
+) {
+    let store = core.store.clone();
+    // 空白字段回落到已保存配置，这样“只改端点”也能测。
+    let cfg = {
+        let s = store.borrow();
+        (
+            s.ai_protocol().to_string(),
+            s.ai_endpoint().to_string(),
+            s.ai_model().to_string(),
+            s.ai_api_key().to_string(),
+        )
+    };
+    let pick = |typed: &str, saved: String| -> String {
+        if typed.trim().is_empty() {
+            saved
+        } else {
+            typed.trim().to_string()
+        }
+    };
+    let protocol = pick(protocol, cfg.0);
+    let endpoint = pick(endpoint, cfg.1);
+    let _model = pick(model, cfg.2);
+    let api_key = if api_key.is_empty() { cfg.3 } else { api_key.to_string() };
+
+    win.set_ai_test_status("".into());
+    win.set_ai_test_busy(true);
+    let weak = win.as_weak();
+    core.runtime.spawn(async move {
+        let outcome = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+            let client = ai_copilot::build_client(&protocol, api_key, endpoint)?;
+            let models = client.list_models().await?;
+            Ok::<usize, ai_copilot::AppError>(models.len())
+        })
+        .await;
+        // `t()` 只吃 'static 文案，带变量的句子自己按语言拼。
+        let text = match outcome {
+            Ok(Ok(count)) => {
+                if crate::i18n::is_en() {
+                    format!("Connected: the endpoint lists {count} models.")
+                } else {
+                    format!("连接成功：该端点返回 {count} 个可用模型。")
+                }
+            }
+            Ok(Err(e)) => {
+                if crate::i18n::is_en() {
+                    format!("Connection failed: {e}")
+                } else {
+                    format!("连接失败：{e}")
+                }
+            }
+            Err(_) => crate::i18n::t("连接超时（20 秒）。", "Timed out after 20 s.").to_string(),
+        };
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(win) = weak.upgrade() {
+                win.set_ai_test_status(text.into());
+                win.set_ai_test_busy(false);
+            }
+        });
+    });
+}
+
+/// 空会话时的起手建议：对应 Copilot 的 starter suggestions，
+/// 都是「先只读、不落地改动」的排障问法。
+fn starter_questions() -> Vec<SharedString> {
+    let en = crate::i18n::is_en();
+    [
+        (
+            "这台机器为什么卡？先看 CPU、内存和负载",
+            "Why is this box slow? Check CPU, memory and load first",
+        ),
+        (
+            "看看 /var/log 里最新的错误，只做只读排查",
+            "Show the latest errors in /var/log - read-only investigation",
+        ),
+        (
+            "磁盘快满了，帮我找出最大的目录",
+            "Disk is almost full - find the largest directories",
+        ),
+    ]
+    .iter()
+    .map(|(zh, en_s)| SharedString::from(if en { *en_s } else { *zh }))
+    .collect()
+}
+
 pub(super) fn wire_ai(ctx: &WinCtx) {
     let WinCtx { core, store, window, .. } = ctx;
+
+    window.set_ai_starters(ModelRc::from(std::rc::Rc::new(VecModel::from(
+        starter_questions(),
+    ))));
 
     // --- 播种 LLM 设置 ---------------------------------------------------
     {
@@ -238,6 +336,29 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
         window.set_ai_model(s.ai_model().into());
         window.set_ai_redaction_enabled(s.ai_redaction_enabled());
         window.set_ai_auto_run_readonly(s.ai_auto_run_readonly());
+        window.set_ai_mode(s.ai_mode().as_str().into());
+    }
+
+    // --- 工作方式（Ask / Agent）------------------------------------------
+    {
+        let core = core.clone();
+        let store = store.clone();
+        let win = window.clone();
+        window.on_ai_set_mode(move |mode: SharedString| {
+            let mode = ai_copilot::triage::CopilotMode::parse(mode.as_str());
+            {
+                let mut s = store.borrow_mut();
+                s.set_ai_mode(mode);
+                let _ = s.save();
+            }
+            // 所有窗口共享同一份设置。
+            core.registry.for_each(|weak| {
+                if let Some(w) = weak.upgrade() {
+                    w.set_ai_mode(mode.as_str().into());
+                }
+            });
+            win.set_ai_mode(mode.as_str().into());
+        });
     }
 
     // --- 抽屉开关 --------------------------------------------------------
@@ -302,6 +423,28 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
         window.on_ai_reject_card(move |tab_id: SharedString, card_id: SharedString| {
             answer_card(&core, &tab_id, &card_id, false);
         });
+    }
+
+    // --- 连通性自检 --------------------------------------------------------
+    {
+        let core = core.clone();
+        let win = window.clone();
+        let win_owned = win.clone();
+        win.on_ai_test_connection(
+            move |protocol: SharedString,
+                  endpoint: SharedString,
+                  model: SharedString,
+                  api_key: SharedString| {
+                test_connection(
+                    &core,
+                    &win_owned,
+                    &protocol,
+                    &endpoint,
+                    &model,
+                    &api_key,
+                );
+            },
+        );
     }
 
     // --- 设置保存 ----------------------------------------------------------

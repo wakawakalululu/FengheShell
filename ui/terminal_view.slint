@@ -319,7 +319,13 @@ export component TerminalView inherits Rectangle {
     in property <string> ai-model: "";
     in property <bool> ai-redaction-enabled: true;
     in property <bool> ai-auto-run-readonly: false;
+    in-out property <string> ai-test-status: "";
+    in-out property <bool> ai-test-busy: false;
+    in-out property <string> ai-mode: "ask";
+    in property <[string]> ai-starters: [];
+    callback ai-set-mode(string);
     callback ai-send(string);
+    callback ai-test-connection(string, string, string, string);
     callback ai-toggle();
     callback ai-close();
     callback ai-clear();
@@ -650,20 +656,19 @@ export component TerminalView inherits Rectangle {
                 }
                 // AI Copilot toggle — lives on the status strip so it never
                 // collides with the SFTP dock or the command bar (#ai-copilot).
+                // AI Copilot 入口：五芒星（参考 GitHub Copilot 的标识），
+                // 打开时填充强调色。Ctrl+Space 同样触发。
                 ai-ta := TouchArea {
-                    width: ai-label.width + 14px;
+                    width: 22px;
                     height: 18px;
                     clicked => { root.ai-toggle(); };
-                    Rectangle {
-                        border-radius: 9px;
-                        background: root.ai-open ? Theme.accent : (ai-ta.has-hover ? Theme.bg-hover : Theme.bg-elevated);
-                        ai-label := Text {
-                            x: 7px;
-                            text: @tr("AI");
-                            color: root.ai-open ? #ffffff : Theme.text-secondary;
-                            font-size: Theme.fs-xs;
-                            vertical-alignment: center;
-                        }
+                    Text {
+                        text: root.ai-open ? "\u{E838}" : "\u{E83A}";
+                        font-family: "Material Icons";
+                        font-size: 15px;
+                        color: root.ai-open ? Theme.accent : (ai-ta.has-hover ? Theme.accent : Theme.text-secondary);
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
                     }
                 }
             }
@@ -2420,6 +2425,12 @@ export component TerminalView inherits Rectangle {
             model: root.ai-model;
             redaction-enabled: root.ai-redaction-enabled;
             auto-run-readonly: root.ai-auto-run-readonly;
+            test-status <=> root.ai-test-status;
+            test-busy <=> root.ai-test-busy;
+            test-connection(p, e, m, k) => { root.ai-test-connection(p, e, m, k); }
+            mode <=> root.ai-mode;
+            starters: root.ai-starters;
+            set-mode(m) => { root.ai-set-mode(m); }
             close() => { root.ai-close(); }
             send(text) => { root.ai-send(text); }
             clear() => { root.ai-clear(); }

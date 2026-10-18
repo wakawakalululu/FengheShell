@@ -37,6 +37,24 @@ SFTP），rssh 提供「AI 运维 Copilot 范式」（无感上下文捕获、AI
 3. 直接提问，或什么都不问 —— CPU / 内存 / 磁盘越界时打开抽屉会自动起一轮排查。
 4. AI 给出的命令会以卡片形式出现在对话里，按风险等级决定你能怎么操作（见下）。
 
+## 工作方式：Ask / Agent（参考 GitHub Copilot 的能力分层）
+
+GitHub Copilot 有三层能力：补全 → 对话/编辑 → 代理。在运维场景里对应成两层：
+
+| Copilot 层 | FengheShell 对应 | 行为 |
+| --- | --- | --- |
+| Chat / Edit | **Ask**（默认） | 解释现象、定位原因、给出命令建议；工具回合上限 2，不主动落地改动 |
+| Agent | **Agent** | 自己规划 → 取证 → 执行 → 验证 → 汇报；工具回合上限 6，每一步在抽屉里留痕 |
+
+两种模式共用同一套工具与 Run Gate：Agent 并不会绕过审批，橙/红命令仍然只填入终端。
+区别只是**回合预算**和**系统提示**（Agent 会额外收到「先取证、再动手、最后验证」的工作方式）。
+
+抽屉里的星形步骤行就是 Agent 的工具调用记录：取证跑过什么、哪一步失败了，用户不必只信结论。
+
+入口：终端状态条右侧的**五芒星**（打开时填充强调色），或 **Ctrl+Space**。空会话时会给出三个
+起手建议（都是先只读的排障问法）。设置里的 **Test connection** 会用当前填写的配置请求一次
+`/models` 做连通性自检，不写盘。
+
 ## 上下文是怎么抓的
 
 传统终端只是一串无状态的字符流，AI 要能诊断，前提是分清「哪一段是命令、哪一段是输出」。
@@ -140,6 +158,30 @@ the AI side is injected as an independent crate.
    alert thresholds, opening the drawer starts a triage round automatically.
 4. Suggested commands arrive as cards; the risk tier decides what you can do
    with them (see below).
+
+## Working modes: Ask / Agent (mirroring GitHub Copilot's layers)
+
+GitHub Copilot stacks three capabilities - completion, chat/edit, agent. Mapped
+onto an ops terminal they become two explicit modes:
+
+| Copilot layer | FengheShell mode | Behaviour |
+| --- | --- | --- |
+| Chat / Edit | **Ask** (default) | Explain, locate the cause, suggest commands; 2 tool turns, never acts on its own |
+| Agent | **Agent** | Plan -> gather evidence -> act -> verify -> report; 6 tool turns, every step leaves a trace |
+
+Both modes share the same tools and Run Gate - Agent never bypasses approval,
+amber/red commands are still only filled into the terminal. The difference is the
+**turn budget** and the **system prompt** (Agent additionally gets the
+"gather first, act second, verify last" working style).
+
+The starred step rows in the drawer are the Agent's tool calls: what it probed and
+which step failed, so the user does not have to trust the conclusion alone.
+
+Entry point: the **five-pointed star** on the right of the terminal status strip
+(filled with the accent colour while open), or **Ctrl+Space**. An empty session
+offers three starter prompts, all read-only first. **Test connection** in the
+settings block issues a single `/models` request with the typed values - it writes
+nothing to disk.
 
 ## Context capture
 

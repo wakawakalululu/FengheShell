@@ -724,6 +724,14 @@ export component AppWindow inherits Window {
     callback ai-run-card(string, string);        // tab-id, card-id
     callback ai-reject-card(string, string);     // tab-id, card-id
     callback ai-apply-settings(string, string, string, string, bool, bool);
+    in-out property <string> ai-test-status: "";
+    in-out property <bool> ai-test-busy: false;
+    /// AI 工作方式：`ask` | `agent`。
+    in-out property <string> ai-mode: "ask";
+    /// 空会话时的起手建议。
+    in property <[string]> ai-starters: [];
+    callback ai-test-connection(string, string, string, string);
+    callback ai-set-mode(string);
     in-out property <bool> mcp-enabled: true;
     in-out property <bool> mcp-use-saved-credentials: true;
     in-out property <bool> mcp-allow-commands: true;
@@ -2100,6 +2108,12 @@ export component AppWindow inherits Window {
                         ai-run-card(id) => { root.ai-run-card(term.id, id); }
                         ai-reject-card(id) => { root.ai-reject-card(term.id, id); }
                         ai-apply-settings(p, e, m, k, r, a) => { root.ai-apply-settings(p, e, m, k, r, a); }
+                        ai-test-status <=> root.ai-test-status;
+                        ai-test-busy <=> root.ai-test-busy;
+                        ai-test-connection(p, e, m, k) => { root.ai-test-connection(p, e, m, k); }
+                        ai-mode <=> root.ai-mode;
+                        ai-starters: root.ai-starters;
+                        ai-set-mode(m) => { root.ai-set-mode(m); }
                         quick-commands: root.quick-commands;
                         quick-sidebar-enabled: root.quick-commands-as-sidebar;
                         quick-panel-docked: root.quick-panel-open;
