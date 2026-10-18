@@ -86,6 +86,8 @@ export struct TerminalState {
     ai-messages: [AiMessage],
     ai-open: bool,
     ai-busy: bool,
+    /// 补全层：命令输入框后方的「幽灵文本」补全（空串 = 无建议）。
+    ai-completion: string,
     sftp-panel-height: length,  // SFTP panel extent (bottom dock) — per session
     sftp-panel-width: length,   // SFTP panel extent (side dock) — per session
     sftp-saved-height: length,  // height to restore on un-collapse — per session
@@ -732,6 +734,8 @@ export component AppWindow inherits Window {
     in property <[string]> ai-starters: [];
     callback ai-test-connection(string, string, string, string);
     callback ai-set-mode(string);
+    /// 补全层：命令输入框内容变化时请求一次补全（空串 = 清除建议）。
+    callback ai-complete-request(string, string);
     in-out property <bool> mcp-enabled: true;
     in-out property <bool> mcp-use-saved-credentials: true;
     in-out property <bool> mcp-allow-commands: true;
@@ -2095,6 +2099,8 @@ export component AppWindow inherits Window {
                         ai-messages: term.ai-messages;
                         ai-open: term.ai-open;
                         ai-busy: term.ai-busy;
+                        ai-completion: term.ai-completion;
+                        ai-complete-request(text) => { root.ai-complete-request(term.id, text); }
                         ai-protocol: root.ai-protocol;
                         ai-endpoint: root.ai-endpoint;
                         ai-model: root.ai-model;

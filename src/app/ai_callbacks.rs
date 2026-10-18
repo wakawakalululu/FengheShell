@@ -5,8 +5,10 @@
 
 use super::*;
 
+use std::time::Duration;
+
 use ai_copilot::shell::ShellKind;
-use ai_copilot::triage::{CopilotConfig, Trigger};
+use ai_copilot::triage::{CompletionContext, CopilotConfig, Trigger, TriageEngine};
 
 use crate::resource::SystemSnapshot;
 
@@ -298,6 +300,23 @@ fn test_connection(
     });
 }
 
+/// 补全只需要一个 LLM 客户端，不需要任何副作用出口；给它一个永远拒绝执行的
+/// runtime，万一模型在补全阶段乱调工具也不会碰到主机。
+struct CompletionOnlyRuntime;
+
+#[async_trait::async_trait]
+impl ai_copilot::triage::ToolRuntime for CompletionOnlyRuntime {
+    async fn request_approval(&self, _p: &ai_copilot::triage::ProposedCommand) -> ai_copilot::AppResult<bool> {
+        Ok(false)
+    }
+    async fn execute_approved(&self, _p: &ai_copilot::triage::ProposedCommand) -> ai_copilot::AppResult<ai_copilot::triage::CommandOutcome> {
+        Err(ai_copilot::AppError::other("completion_has_no_side_effects", serde_json::json!({})))
+    }
+    async fn read_remote_file(&self, _path: &str, _max_bytes: usize) -> ai_copilot::AppResult<String> {
+        Err(ai_copilot::AppError::other("completion_has_no_side_effects", serde_json::json!({})))
+    }
+}
+
 /// 空会话时的起手建议：对应 Copilot 的 starter suggestions，
 /// 都是「先只读、不落地改动」的排障问法。
 fn starter_questions() -> Vec<SharedString> {
@@ -337,6 +356,64 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
         window.set_ai_redaction_enabled(s.ai_redaction_enabled());
         window.set_ai_auto_run_readonly(s.ai_auto_run_readonly());
         window.set_ai_mode(s.ai_mode().as_str().into());
+    }
+
+    // --- 补全层（Copilot 第一层）-----------------------------------------
+    {
+        let core = core.clone();
+        let store = store.clone();
+        let win = window.clone();
+        window.on_ai_complete_request(move |tab_id: SharedString, prefix: SharedString| {
+            let Some(ai) = ai_handle(&core, &tab_id) else {
+                return;
+            };
+            // 输入太短、或压根没配密钥 —— 直接清空旧建议，不发请求。
+            let cleared = prefix.trim().len() < 3
+                || !{
+                    let s = store.borrow();
+                    !s.ai_api_key().trim().is_empty()
+                };
+            let seq = completion_request(&ai);
+            if cleared {
+                set_completion(&win.as_weak(), &tab_id, "");
+                return;
+            }
+            let prefix_s = prefix.to_string();
+            let cfg = ai_config(&store, ShellKind::Posix);
+            // 带上这个标签最近跑过的几条命令，补全才能贴合当前在做什么。
+            let recent_commands = ai
+                .lock()
+                .map(|g| g.context_blocks(4).into_iter().map(|b| b.command).collect())
+                .unwrap_or_default();
+            let weak = win.as_weak();
+            let tab = tab_id.to_string();
+            let ai2 = ai.clone();
+            core.runtime.spawn(async move {
+                // 输入停顿 400ms 再发，避免每敲一个字符都打一次模型。
+                tokio::time::sleep(Duration::from_millis(400)).await;
+                let suggestion = match TriageEngine::new(cfg, Arc::new(CompletionOnlyRuntime)) {
+                    Ok(engine) => {
+                        let ctx = CompletionContext {
+                            recent_commands,
+                            cwd: None,
+                        };
+                        match tokio::time::timeout(
+                            Duration::from_secs(10),
+                            engine.complete(&prefix_s, &ctx),
+                        )
+                        .await
+                        {
+                            Ok(Ok(text)) => text,
+                            _ => String::new(),
+                        }
+                    }
+                    Err(_) => String::new(),
+                };
+                if completion_is_current(&ai2, seq) {
+                    set_completion(&weak, &tab, &suggestion);
+                }
+            });
+        });
     }
 
     // --- 工作方式（Ask / Agent）------------------------------------------

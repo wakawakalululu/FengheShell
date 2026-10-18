@@ -94,6 +94,8 @@ pub(crate) struct TabAi {
     cancel: Option<Arc<AtomicBool>>,
     /// 抽屉内容的权威副本；Slint 模型只是它的镜像。
     messages: Vec<AiMessage>,
+    /// 补全请求序号：输入每变一次就自增，旧的补全响应据此作废。
+    completion_seq: u64,
     busy: bool,
     /// 每次「清空 / 停止」自增：还在跑的旧 ask() 会看到 generation 变了，
     /// 于是放弃自己的 UI 写入，避免已取消的回复覆盖新会话。
@@ -113,6 +115,7 @@ impl TabAi {
             approval: None,
             cancel: None,
             messages: Vec::new(),
+            completion_seq: 0,
             busy: false,
             generation: 0,
         }
@@ -403,6 +406,54 @@ fn sync_plan_rows(rows: &mut Vec<AiMessage>, plan: &[ai_copilot::triage::PlanSte
             rows.push(row);
         }
     }
+}
+
+
+/// 每个标签的补全状态：请求序号保证「后发先至」的响应不会覆盖新输入的结果。
+pub(super) struct CompletionState {
+    seq: u64,
+}
+
+impl CompletionState {
+    fn new() -> Self {
+        Self { seq: 0 }
+    }
+}
+
+/// 取这个标签的补全序号；同时把「已显示的补全」作废（输入变了）。
+pub(super) fn completion_request(ai: &AiTabHandle) -> u64 {
+    match ai.lock() {
+        Ok(mut g) => {
+            g.completion_seq += 1;
+            g.completion_seq
+        }
+        Err(e) => {
+            let mut g = e.into_inner();
+            g.completion_seq += 1;
+            g.completion_seq
+        }
+    }
+}
+
+/// 只有最新一次请求的响应才允许写回 UI。
+pub(super) fn completion_is_current(ai: &AiTabHandle, seq: u64) -> bool {
+    ai.lock().map(|g| g.completion_seq == seq).unwrap_or(false)
+}
+
+/// 写回补全结果（空串表示清空）。
+pub(super) fn set_completion(
+    weak: &slint::Weak<AppWindow>,
+    tab_id: &str,
+    text: &str,
+) {
+    let value = text.to_string();
+    let weak = weak.clone();
+    let tab_id = tab_id.to_string();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(win) = weak.upgrade() {
+            set_terminal_row(&win, &tab_id, |row| row.ai_completion = value.clone().into());
+        }
+    });
 }
 
 /// 把一次工具调用渲染成 Copilot 那样的步骤行。

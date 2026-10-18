@@ -319,6 +319,9 @@ export component TerminalView inherits Rectangle {
     in property <string> ai-model: "";
     in property <bool> ai-redaction-enabled: true;
     in property <bool> ai-auto-run-readonly: false;
+    /// 补全层：命令输入框的「幽灵文本」建议。
+    in property <string> ai-completion: "";
+    callback ai-complete-request(string);
     in-out property <string> ai-test-status: "";
     in-out property <bool> ai-test-busy: false;
     in-out property <string> ai-mode: "ask";
@@ -1596,8 +1599,35 @@ export component TerminalView inherits Rectangle {
                                 root.history-cursor = -1;
                                 root.focus-pending = true;
                             }
+                            // ── 补全层（Copilot 第一层）：幽灵文本 ──────────
+                            // 用一段隐藏的同字体文本测量已输入部分的宽度，把建议画在
+                            // 光标后面；输入变化即作废，Tab 接受。
+                            ghost-measure := Text {
+                                text: cmd-input.text;
+                                font-family: Theme.ui-font-family;
+                                font-size: Theme.fs-md;
+                                opacity: 0;
+                                width: 0px;
+                                height: 0px;
+                                y: -50px;
+                            }
+                            if root.ai-completion != "" && !root.history-open
+                                && cmd-input.text != "" && root.ai-completion != cmd-input.text :
+                            Text {
+                                x: 8px + ghost-measure.preferred-width;
+                                y: 0px;
+                                height: command-scroll.visible-height;
+                                width: max(0px, command-scroll.visible-width - self.x - 8px);
+                                text: root.ai-completion;
+                                color: Theme.text-muted;
+                                font-family: Theme.ui-font-family;
+                                font-size: Theme.fs-md;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
                             edited => {
                                 root.history-cursor = -1;
+                                root.ai-complete-request(self.text);
                                 root.quick-open = false;
                                 root.history-autocomplete = self.text != "";
                                 root.search-history(self.text);
@@ -1607,7 +1637,17 @@ export component TerminalView inherits Rectangle {
                                     ? root.history-view.length - 1 : 0;
                             }
                             key-pressed(e) => {
-                                if (e.text == Key.Return && !e.modifiers.shift) {
+                                // Tab 接受补全（Copilot 的 inline suggestion 交互）。
+                                if (e.text == Key.Tab && !e.modifiers.control && !e.modifiers.shift
+                                        && !e.modifiers.alt && !e.modifiers.meta
+                                        && root.ai-completion != "" && root.ai-completion != self.text) {
+                                    self.text = root.ai-completion;
+                                    accept
+                                } else if (e.text == Key.Escape && root.ai-completion != "") {
+                                    // 只清补全，不丢焦点。
+                                    root.ai-complete-request("");
+                                    accept
+                                } else if (e.text == Key.Return && !e.modifiers.shift) {
                                     root.run-command(self.text, root.send-to-all);
                                     self.text = "";
                                     root.history-open = false;

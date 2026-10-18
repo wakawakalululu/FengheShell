@@ -70,7 +70,17 @@ Agent 模式会先用 `set_plan` 工具把计划发布成一份**清单**（最�
 推进规则是「第 n 次动作型工具调用对应第 n 步」——这是有意做的简化：让模型逐步回报进度
 既啰嗦又不可靠。清单只用于**展示进度**，真正的执行结果仍以命令卡片和步骤痕迹为准。
 
+### 补全层（命令输入框的幽灵文本）
+
+对应 Copilot 第一层：在命令栏输入框里，敲到一半时模型把后续命令以灰色幽灵文本画在光标后面，Tab 接受，Esc 只清建议不丢焦点。
+
+- 输入停顿 400ms 才发请求，少于 3 个字符不发；没有配置 API Key 时整层不启用
+- 请求带最近执行过的 4 条命令作为上下文，但不带工具：补全阶段永远不可能执行任何东西（runtime 是恒拒绝的实现）
+- max_tokens 只有 64，一次补全几十个 token；10 秒超时即静默放弃
+- 每次输入变化都会作废上一次响应（序号守卫），旧建议不会盖到新输入上
+
 ## 上下文是怎么抓的
+
 
 传统终端只是一串无状态的字符流，AI 要能诊断，前提是分清「哪一段是命令、哪一段是输出」。
 `crates/ai-copilot/src/blocks.rs` 在会话 pump 线程上对输出流做两件事：
@@ -215,7 +225,23 @@ simplification, since asking the model to report progress per step is verbose an
 unreliable. The checklist shows progress only; the authoritative result is still the
 command cards and the step log.
 
+### Completion layer (ghost text in the command box)
+
+Mirrors Copilot's first layer: while you type in the command bar, the model draws what
+should come next as grey ghost text after the caret. Tab accepts it, Esc dismisses the
+suggestion without losing focus.
+
+- Requests are debounced by 400 ms and skipped below 3 characters; with no API key
+  configured the layer stays off entirely
+- The last 4 executed commands ride along as context, but the request carries no tools:
+  completion can never execute anything (its runtime refuses every call)
+- max_tokens is 64, so a completion costs tens of tokens; it gives up silently after a
+  10 s timeout
+- Every keystroke invalidates the previous response (sequence guard), so a stale
+  suggestion can never be painted over new input
+
 ## Context capture
+
 
 The terminal is an unlabelled character stream. Before AI can diagnose anything,
 it has to know which part was the command and which part was its output.

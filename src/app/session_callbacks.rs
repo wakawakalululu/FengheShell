@@ -1316,6 +1316,7 @@ pub(super) fn wire_session_callbacks(
                 ai_messages: ModelRc::from(std::rc::Rc::new(VecModel::<AiMessage>::default())),
                 ai_open: false,
                 ai_busy: false,
+                ai_completion: "".into(),
             });
             // Create vt100 parser for this tab (default 24×80; resized on first
             // terminal-resize callback). 5000-line scrollback is stored for
