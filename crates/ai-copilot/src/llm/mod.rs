@@ -19,6 +19,7 @@ pub mod anthropic;
 pub mod deepseek;
 mod protocol;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -80,6 +81,20 @@ pub struct ChatRequest {
     pub tools: Vec<ToolSchema>,
     pub model: String,
     pub max_tokens: u32,
+    /// 宿主置位后，客户端会在下一个流式分块处放弃这次请求（用户点了「停止」）。
+    pub cancel: Option<Arc<AtomicBool>>,
+}
+
+/// 宿主是否已经要求中断这次请求。
+pub(crate) fn is_cancelled(req: &ChatRequest) -> bool {
+    req.cancel
+        .as_ref()
+        .is_some_and(|flag| flag.load(Ordering::Relaxed))
+}
+
+/// 中断请求时统一返回的错误，引擎据此区分「用户取消」与真正的网络故障。
+pub(crate) fn cancelled_error() -> crate::AppError {
+    crate::AppError::other("llm_cancelled", serde_json::json!({}))
 }
 
 #[derive(Debug, Clone, Serialize)]

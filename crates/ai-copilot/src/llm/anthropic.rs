@@ -239,6 +239,10 @@ impl LlmClient for AnthropicClient {
         let mut parser = SseParser::new();
         let mut stream = resp.bytes_stream();
         while let Some(chunk) = stream.next().await {
+            // 用户点了「停止」：放弃这次请求。
+            if crate::llm::is_cancelled(&req) {
+                return Err(crate::llm::cancelled_error());
+            }
             let bytes = chunk.map_err(|e| {
                 AppError::other(
                     "llm_stream_read_failed",

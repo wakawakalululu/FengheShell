@@ -280,7 +280,11 @@ async fn chat(
 
     let mut parser = SseParser::new();
     let mut stream = resp.bytes_stream();
+    // 与 protocol.rs 同样的中断检查：下一个分块处放弃这次请求。
     'stream: while let Some(chunk) = stream.next().await {
+        if crate::llm::is_cancelled(&req) {
+            return Err(crate::llm::cancelled_error());
+        }
         let bytes = chunk.map_err(|e| {
             AppError::other("llm_stream_read_failed", json!({ "err": error_chain(&e) }))
         })?;

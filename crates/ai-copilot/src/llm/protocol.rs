@@ -245,6 +245,10 @@ pub async fn chat(
     let mut parser = SseParser::new();
     let mut stream = resp.bytes_stream();
     'stream: while let Some(chunk) = stream.next().await {
+        // 用户点了「停止」：放弃这次请求，别再往下消费流。
+        if crate::llm::is_cancelled(&req) {
+            return Err(crate::llm::cancelled_error());
+        }
         let bytes = chunk.map_err(|e| {
             AppError::other("llm_stream_read_failed", json!({ "err": error_chain(&e) }))
         })?;

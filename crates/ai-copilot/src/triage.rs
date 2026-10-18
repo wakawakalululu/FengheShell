@@ -21,6 +21,7 @@
 //! trait，由 FengheShell 以 `send_raw` / MCP automation 层实现（monkey 友好，
 //! 单测用 Mock 即可跑完整链路）。
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -289,6 +290,9 @@ pub struct TriageEngine {
     client: Box<dyn LlmClient>,
     runtime: Arc<dyn ToolRuntime>,
     redactor: IndexedRedactor,
+    /// 宿主持有同一个开关：置位后引擎在下一个回合边界退出，客户端也在下一个
+    /// 流式分块处放弃请求（用户点了「停止」）。
+    cancel: Arc<AtomicBool>,
 }
 
 impl TriageEngine {
@@ -299,12 +303,19 @@ impl TriageEngine {
             client,
             runtime,
             redactor: IndexedRedactor::builtin(),
+            cancel: Arc::new(AtomicBool::new(false)),
         })
     }
 
     /// 使用自定义脱敏规则集构造（用户配置驱动）。
     pub fn with_redactor(mut self, redactor: IndexedRedactor) -> Self {
         self.redactor = redactor;
+        self
+    }
+
+    /// 交给宿主一个中断开关：置位后这次 ask() 会尽快结束并返回 `llm_cancelled`。
+    pub fn with_cancel(mut self, cancel: Arc<AtomicBool>) -> Self {
+        self.cancel = cancel;
         self
     }
 
@@ -337,12 +348,17 @@ impl TriageEngine {
         let mut final_resp: Option<ChatResponse> = None;
 
         for _ in 0..MAX_TOOL_TURNS {
+            // 回合边界的中断检查：即使客户端还在等第一个分块，也能立刻退出。
+            if self.cancel.load(Ordering::Relaxed) {
+                return Err(crate::llm::cancelled_error());
+            }
             let req = ChatRequest {
                 system_prompt: system.clone(),
                 messages: messages.clone(),
                 tools: self.tools(),
                 model: self.cfg.model.clone(),
                 max_tokens: 4096,
+                cancel: Some(self.cancel.clone()),
             };
             let resp = self.client.chat(req, sink.clone()).await?;
             if resp.tool_calls.is_empty() {
@@ -736,7 +752,31 @@ mod tests {
             }),
             runtime,
             redactor: IndexedRedactor::builtin(),
+            cancel: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_round_stops_before_the_next_turn() {
+        let rt = Arc::new(MockRuntime::default());
+        rt.approved.store(true, std::sync::atomic::Ordering::SeqCst);
+        let cancel = Arc::new(AtomicBool::new(false));
+        let eng = engine(
+            vec![
+                resp_with_tools(vec![tool_call(
+                    "t1",
+                    TOOL_RUN_COMMAND,
+                    serde_json::json!({"cmd": "df -h", "explain": "看磁盘", "side_effect": "无"}),
+                )]),
+                resp_final("不该走到这里"),
+            ],
+            rt.clone(),
+        )
+        .with_cancel(cancel.clone());
+        cancel.store(true, Ordering::Relaxed);
+        let err = eng.ask(&ctx(), None).await.expect_err("取消必须报错");
+        assert_eq!(err.code(), "llm_cancelled");
+        assert!(rt.run_log.lock().unwrap().is_empty(), "取消后不得再执行命令");
     }
 
     fn ctx() -> TriageContext {
