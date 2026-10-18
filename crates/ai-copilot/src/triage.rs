@@ -42,6 +42,38 @@ use crate::tools::{all_tools, RunCommandInput, TOOL_RUN_COMMAND};
 /// 内置 system prompt（rssh prompts/general.md 移植 + 品牌化）。
 const SYSTEM_PROMPT: &str = include_str!("prompts/general.md");
 
+/// Agent 模式追加的工作方式：先取证、再动手、最后验证。对应 GitHub Copilot
+/// Agent 的「理解目标 → 查找 → 制定方案 → 执行 → 验证 → 汇报」六步，
+/// 只是把「改文件」换成「在远端主机上执行运维动作」。
+const AGENT_PROMPT: &str = "
+## Working mode: agent
+
+You are expected to drive the investigation to a conclusion, not just answer:
+
+1. Understand the goal and its constraints (what is allowed to change).
+2. Gather evidence with read-only probes before forming a theory.
+3. Decide the smallest change that could fix it.
+4. Carry it out through tools (mutating commands still need user approval).
+5. Verify: re-run a read-only probe and report what actually changed.
+6. Finish with a short report: cause, what you ran, result, and anything left.
+
+Do not invent evidence - if a probe fails, say so and try another one.
+Keep every step visible: the user sees your tool calls as a step list.
+
+## 工作方式：代理
+
+要求你把排查推进到结论，而不只是回答：
+
+1. 理解目标与约束（哪些东西允许被改动）。
+2. 先用只读探测取证，再给出判断。
+3. 选择最小改动的修复路径。
+4. 通过工具落地（有副作用的命令仍需用户批准）。
+5. 验证：再跑一次只读探测，说明实际发生了什么变化。
+6. 最后给一份简短汇报：原因、执行过的命令、结果、遗留事项。
+
+不要编造证据；探测失败就明说并换一条路径。每一步都要可见 —— 用户会把你的工具调用看成步骤列表。
+";
+
 /// 单次 ask() 内允许的最大工具回合数（防 LLM 无限循环调用工具）。
 pub const MAX_TOOL_TURNS: usize = 6;
 
@@ -49,6 +81,49 @@ pub const MAX_TOOL_TURNS: usize = 6;
 pub const TOOL_READ_REMOTE_FILE: &str = "read_remote_file";
 
 // ─── 配置与上下文 ──────────────────────────────────────────────────
+
+/// 参考 GitHub Copilot 的能力分层，在运维场景下的映射：
+///
+/// - `Ask`：对话层 —— 解释现象、定位原因、给出命令建议，不主动落地改动；
+/// - `Agent`：代理层 —— 自己规划步骤、调用工具取证、按权限执行、验证结果并汇报。
+///
+/// 两者共用同一套工具与 Run Gate，区别只在回合预算与系统提示。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CopilotMode {
+    #[default]
+    Ask,
+    Agent,
+}
+
+impl CopilotMode {
+    /// 一次 ask() 允许的工具回合数。Ask 只够「取证 + 给建议」，
+    /// Agent 才跑得完「取证 → 执行 → 验证」。
+    pub fn max_turns(self) -> usize {
+        match self {
+            CopilotMode::Ask => 2,
+            CopilotMode::Agent => MAX_TOOL_TURNS,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CopilotMode::Ask => "ask",
+            CopilotMode::Agent => "agent",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        if s.trim().eq_ignore_ascii_case("agent") {
+            CopilotMode::Agent
+        } else {
+            CopilotMode::Ask
+        }
+    }
+
+    pub fn is_agent(self) -> bool {
+        matches!(self, CopilotMode::Agent)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct CopilotConfig {
@@ -64,6 +139,8 @@ pub struct CopilotConfig {
     pub auto_run_readonly: bool,
     /// UI 语言（影响 prompt 的回复语言要求）。
     pub locale: String,
+    /// Ask（对话）还是 Agent（代理）。
+    pub mode: CopilotMode,
 }
 
 impl Default for CopilotConfig {
@@ -77,6 +154,7 @@ impl Default for CopilotConfig {
             redaction_enabled: true,
             auto_run_readonly: false,
             locale: "zh-CN".into(),
+            mode: CopilotMode::default(),
         }
     }
 }
@@ -347,7 +425,7 @@ impl TriageEngine {
         let mut tool_log: Vec<ToolLogEntry> = Vec::new();
         let mut final_resp: Option<ChatResponse> = None;
 
-        for _ in 0..MAX_TOOL_TURNS {
+        for _ in 0..self.cfg.mode.max_turns() {
             // 回合边界的中断检查：即使客户端还在等第一个分块，也能立刻退出。
             if self.cancel.load(Ordering::Relaxed) {
                 return Err(crate::llm::cancelled_error());
@@ -424,6 +502,9 @@ impl TriageEngine {
         if let Some(snap) = &ctx.system {
             s.push('\n');
             s.push_str(&snap.to_prompt_section());
+        }
+        if self.cfg.mode.is_agent() {
+            s.push_str(AGENT_PROMPT);
         }
         s
     }
@@ -754,6 +835,19 @@ mod tests {
             redactor: IndexedRedactor::builtin(),
             cancel: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    #[test]
+    fn agent_mode_gets_the_full_tool_budget() {
+        assert_eq!(CopilotMode::Ask.max_turns(), 2);
+        assert_eq!(CopilotMode::Agent.max_turns(), MAX_TOOL_TURNS);
+        assert!(CopilotMode::Agent.max_turns() > CopilotMode::Ask.max_turns());
+        // 未知字符串一律回落到更保守的 Ask。
+        assert_eq!(CopilotMode::parse("agent"), CopilotMode::Agent);
+        assert_eq!(CopilotMode::parse("AGENT"), CopilotMode::Agent);
+        assert_eq!(CopilotMode::parse(""), CopilotMode::Ask);
+        assert_eq!(CopilotMode::parse("whatever"), CopilotMode::Ask);
+        assert_eq!(CopilotMode::default(), CopilotMode::Ask);
     }
 
     #[tokio::test]

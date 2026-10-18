@@ -334,6 +334,9 @@ pub struct ConfigFile {
     /// 只读命令（绿色 Gate）跳过确认直接执行 —— 仍发生在用户可见的终端里。
     #[serde(default)]
     pub ai_auto_run_readonly: bool,
+    /// 工作方式：`ask`（对话，只给建议）| `agent`（代理，自己取证/执行/验证）。
+    #[serde(default)]
+    pub ai_mode: String,
     /// One-time default-layout migration marker (#new-user-defaults). 0 = config
     /// predates the migration. `migrate_defaults` bumps it to `DEFAULTS_REV` after
     /// pushing the new look (default wallpaper / welcome-as-sidebar / right-docked

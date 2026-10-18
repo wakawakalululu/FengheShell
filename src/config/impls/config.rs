@@ -1622,6 +1622,15 @@ impl ConfigStore {
         self.cache.ai_auto_run_readonly
     }
 
+    /// AI 工作方式（Ask / Agent）。未知值一律按更保守的 Ask 处理。
+    pub fn ai_mode(&self) -> ai_copilot::triage::CopilotMode {
+        ai_copilot::triage::CopilotMode::parse(&self.cache.ai_mode)
+    }
+
+    pub fn set_ai_mode(&mut self, mode: ai_copilot::triage::CopilotMode) {
+        self.cache.ai_mode = mode.as_str().to_string();
+    }
+
     pub fn set_ai_settings(
         &mut self,
         protocol: String,
