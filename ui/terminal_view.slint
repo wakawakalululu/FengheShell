@@ -1267,6 +1267,16 @@ export component TerminalView inherits Rectangle {
                             && (event.text == Key.Return || event.text == "\u{000d}")) {
                         root.fullscreen-key();
                         accept
+                    // ── AI Copilot drawer: Ctrl+Space (#ai-copilot) ──
+                    // Terminals see Ctrl+Space as NUL (\u{0000}); intercept it
+                    // before send-key so it never reaches the shell. A hidden
+                    // (inactive tab) view rejects it so the window-level
+                    // fallback toggles the drawer for the active tab instead.
+                    } else if (root.visible && event.modifiers.control
+                            && !event.modifiers.alt && !event.modifiers.shift
+                            && (event.text == " " || event.text == "\u{0000}")) {
+                        root.ai-toggle();
+                        accept
                     // ── Font zoom: Ctrl+= / Ctrl+- / Ctrl+0 (⌘ on macOS) ──
                     // Zooms this session only; adding Alt zooms every session
                     // in the window. Alt (not Shift) because Ctrl+Shift is the

@@ -1336,6 +1336,15 @@ export component AppWindow inherits Window {
                     && (e.text == Key.Return || e.text == "\u{000d}")) {
                 root.toggle-term-fullscreen();
                 accept
+            // AI Copilot drawer: Ctrl+Space on the active tab (#ai-copilot).
+            // Terminals swallow Ctrl+Space as NUL (\u{0000}) and some backends
+            // report a literal space, so both spellings are accepted. On macOS
+            // Slint maps `control` to Cmd (#158); ⌘Space belongs to Spotlight,
+            // so the physical Ctrl+Space also lands here via `control`.
+            } else if (e.modifiers.control && !e.modifiers.alt && !e.modifiers.shift
+                    && (e.text == " " || e.text == "\u{0000}")) {
+                root.ai-toggle(root.active-tab-id);
+                accept
             } else {
                 reject
             }
@@ -4333,6 +4342,7 @@ export component AppWindow inherits Window {
                 ShortcutRow { keys: root.is-mac ? "⌘⇧N" : "Ctrl+Shift+N"; desc: root.lang-en ? "New window" : "新建窗口"; }
                 ShortcutRow { keys: root.is-mac ? "⌘⌥Z" : "Ctrl+Alt+Z"; desc: root.lang-en ? "Toggle zen (focus) mode" : "切换专注模式"; }
                 ShortcutRow { keys: root.is-mac ? "⌥↩" : "Alt+Enter"; desc: root.lang-en ? "Toggle terminal fullscreen" : "切换终端全屏"; }
+                ShortcutRow { keys: "Ctrl+Space"; desc: root.lang-en ? "Toggle AI Copilot drawer" : "开关 AI Copilot 抽屉"; }
 
                 Rectangle { height: 6px; }
                 Text { text: root.lang-en ? "Terminal" : "终端";
