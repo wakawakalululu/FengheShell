@@ -9,7 +9,7 @@ tabbed terminals) while cutting memory use from the 400 MB+ of a JVM app down to
 the tens-of-MB range of a native binary.
 
 > **FengheShell** (literally "the stitched shell") is a fork and second-stage rewrite of
-> [MeatShell](https://github.com/yituorou/meatshell): it keeps the resource-monitor sidebar,
+> upstream MeatShell: it keeps the resource-monitor sidebar,
 > tabbed terminals and SFTP base, and stitches in the AI ops Copilot paradigm from
 > [rssh](https://github.com/shihuili1218/rssh) - terminal context capture, local redaction
 > and side-effect-rated command execution. Both upstreams are Rust, so no FFI glue is needed.
@@ -29,35 +29,13 @@ the tens-of-MB range of a native binary.
 
 ## Download & install
 
-Every `v*` tag triggers a CI build that produces native binaries for **Windows /
-Linux / macOS**, published on the [Releases](https://cnb.cool/SecLab/FengheShell) page.
+**No prebuilt packages are published for FengheShell yet - please build from
+source (see "Running" below).** The in-app "check for updates" is switched off as
+well: this project has no release feed of its own. Filling in `RELEASE_API` in
+`src/update.rs` is all it takes to turn it back on.
 
-> Note: FengheShell does not have its own release pipeline yet, so the in-app
-> update check still queries the upstream
-> [MeatShell](https://github.com/yituorou/meatshell) releases. Until a FengheShell
-> release feed exists, build from source (see "Running") to get this build.
-
-### Windows
-
-Download `fengheshell-*-windows-x86_64.zip`, unzip, and run `fengheshell.exe`.
-
-### Linux
-
-```bash
-tar -xzf fengheshell-*-linux-x86_64.tar.gz
-cd fengheshell-*-linux-x86_64
-./fengheshell                                  # run it directly
-# Optional: system-wide install of the binary, icon, and launcher (requires sudo)
-chmod +x install-linux.sh && ./install-linux.sh
-```
-
-The installer places the binary at `/usr/local/bin/fengheshell`, the launcher at
-`/usr/local/share/applications/fengheshell.desktop`, and the icon at
-`/usr/local/share/icons/hicolor/512x512/apps/fengheshell.png`. It also removes a
-stale same-named user launcher left by older tarball installers.
-
-> Requires glibc ≥ 2.35 (Ubuntu 22.04+ / Debian 12+). On Wayland you may need to
-> log out/in once after installing the icon.
+(Packaging scripts and CI workflows stay in the tree, ready for when a release
+pipeline exists.)
 
 Building from source with `cargo run` on Linux Mint / Ubuntu / Debian requires
 the Slint/winit/rfd system development packages:

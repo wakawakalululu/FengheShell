@@ -7,7 +7,7 @@
 （资源监控侧栏、会话管理、多标签页终端）的同时，把内存占用从 400 MB+ 的
 JVM 压到几十 MB 原生级别。
 
-> **FengheShell（缝合的 Shell）** 是在 [MeatShell](https://github.com/yituorou/meatshell) 之上做的二次开发项目：
+> **FengheShell（缝合的 Shell）** 是在上游 MeatShell 之上做的二次开发项目：
 > 保留它的资源监控侧栏 / 多标签终端 / SFTP 底座，并把
 > [rssh](https://github.com/shihuili1218/rssh) 的 AI 运维 Copilot 范式缝进来
 > （终端上下文捕获、本地脱敏、带副作用评级的命令执行）。两者同为 Rust，无需 FFI 胶水层。
@@ -27,32 +27,11 @@ JVM 压到几十 MB 原生级别。
 
 ## 下载与安装
 
-每次打 `v*` 标签，CI 会自动构建 **Windows / Linux / macOS** 三平台二进制并发布到
-[Releases](https://cnb.cool/SecLab/FengheShell)。
+**FengheShell 目前还没有对外发布的预编译包，请从源码构建（见下方「运行」一节）。**
+应用内的「检查更新」也已暂时关闭：本项目还没有自己的发布源，等有了之后只要在
+`src/update.rs` 里把 `RELEASE_API` 填成对应的 releases API 即可恢复。
 
-> 说明：FengheShell 目前还没有自己的发布流水线，更新检查暂时仍指向上游
-> [MeatShell](https://github.com/yituorou/meatshell) 的 Releases。在自建发布源之前，
-> 想拿到 FengheShell 自己的二进制请从源码构建（见「运行」一节）。
-
-### Windows
-
-下载 `fengheshell-*-windows-x86_64.zip`，解压后双击 `fengheshell.exe`。
-
-### Linux
-
-```bash
-tar -xzf fengheshell-*-linux-x86_64.tar.gz
-cd fengheshell-*-linux-x86_64
-./fengheshell                                  # 直接运行
-# 可选：系统级安装程序、图标和启动器入口（需要 sudo）
-chmod +x install-linux.sh && ./install-linux.sh
-```
-
-一键安装会将程序安装到 `/usr/local/bin/fengheshell`，启动器安装到
-`/usr/local/share/applications/fengheshell.desktop`，图标安装到
-`/usr/local/share/icons/hicolor/512x512/apps/fengheshell.png`，并清理旧版 tar 包留下的用户级同名启动器。
-
-> 需要 glibc ≥ 2.35（Ubuntu 22.04+ / Debian 12+）。Wayland 下首次装完图标可能要注销重登一次。
+（打包脚本与 CI 工作流保留在仓库里，等发布流水线就绪后启用。）
 
 从源码 `cargo run`（Linux Mint / Ubuntu / Debian）需要先安装 Slint/winit/rfd 等用到的系统开发包：
 

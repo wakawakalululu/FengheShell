@@ -1,9 +1,13 @@
-# Maintainer: yituorou <REPLACE_WITH_YOUR_EMAIL>
+# Maintainer: FengheShell contributors
 #
-# Binary package: installs the pre-built release tarball from GitHub, so Arch
-# users don't have to compile Rust + Slint themselves. The CI in
+# Binary package: installs the pre-built release tarball, so Arch users don't
+# have to compile Rust + Slint themselves. The CI in
 # .github/workflows/aur-publish.yml keeps pkgver + checksums in sync on each
 # release; you can also `makepkg -si` this file directly.
+#
+# PAUSED: FengheShell publishes no release tarballs yet, so there is nothing for
+# this package to download. Restore the `source_*` entries below (pointing at the
+# FengheShell release URL) when a release feed exists.
 pkgname=fengheshell-bin
 pkgver=0.6.6
 pkgrel=1
@@ -21,8 +25,8 @@ depends=('fontconfig' 'freetype2' 'libxkbcommon' 'gtk3' 'hicolor-icon-theme')
 optdepends=('freerdp: RDP remote desktop sessions')
 # The released binary is already stripped (Cargo.toml: strip = "symbols").
 options=('!strip')
-source_x86_64=("fengheshell-${pkgver}-x86_64.tar.gz::${url}/releases/download/v${pkgver}/fengheshell-v${pkgver}-linux-x86_64.tar.gz")
-source_aarch64=("fengheshell-${pkgver}-aarch64.tar.gz::${url}/releases/download/v${pkgver}/fengheshell-v${pkgver}-linux-aarch64.tar.gz")
+# source_x86_64=("fengheshell-${pkgver}-x86_64.tar.gz::${url}/releases/download/v${pkgver}/fengheshell-v${pkgver}-linux-x86_64.tar.gz")
+# source_aarch64=("fengheshell-${pkgver}-aarch64.tar.gz::${url}/releases/download/v${pkgver}/fengheshell-v${pkgver}-linux-aarch64.tar.gz")
 # `updpkgsums` (run by CI, or by you locally) fills these in. SKIP just disables
 # the integrity check for a manual build.
 sha256sums_x86_64=('SKIP')

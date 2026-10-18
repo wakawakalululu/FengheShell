@@ -10,11 +10,18 @@ pub mod inplace;
 #[cfg(windows)]
 pub mod windows;
 
-// TODO(FengheShell): point these at FengheShell's own release feed once it has
-// one. Until then the update check keeps querying the upstream MeatShell repo,
-// because a dead link is worse than a still-working one.
-pub const RELEASE_PAGE: &str = "https://github.com/yituorou/meatshell/releases/latest";
-const RELEASE_API: &str = "https://api.github.com/repos/yituorou/meatshell/releases/latest";
+/// Page offered to the user when they want to fetch a newer build by hand.
+pub const RELEASE_PAGE: &str = "https://cnb.cool/SecLab/FengheShell";
+
+/// FengheShell has no public release feed yet, so the automatic check is
+/// switched off. Point this at a releases API endpoint once one exists and
+/// `check()` starts working again with no other change.
+const RELEASE_API: Option<&str> = None;
+
+/// Only release assets served from this path are accepted (see `Release::asset`).
+/// TODO(FengheShell): set both this and `RELEASE_API` when the project has its
+/// own release feed.
+const RELEASE_DOWNLOAD_PATH: &str = "/fengheshell/fengheshell/releases/download";
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Release {
@@ -57,7 +64,12 @@ pub fn newer_release(body: &str, current: &str) -> Result<Option<Release>> {
 }
 
 pub fn check() -> Result<Option<Release>> {
-    let body = ureq::get(RELEASE_API)
+    let Some(api) = RELEASE_API else {
+        // No release feed configured yet — report "nothing newer" instead of
+        // querying someone else's releases.
+        return Ok(None);
+    };
+    let body = ureq::get(api)
         .set("User-Agent", "fengheshell-update-check")
         .timeout(Duration::from_secs(15))
         .call()
@@ -90,10 +102,7 @@ impl Release {
                 && url.query().is_none()
                 && url.fragment().is_none()
                 && url.path()
-                    == format!(
-                        "/yituorou/fengheshell/releases/download/{}/{name}",
-                        self.tag_name
-                    ),
+                    == format!("{RELEASE_DOWNLOAD_PATH}/{}/{name}", self.tag_name),
             "Unexpected installer download URL"
         );
         ensure!(asset.size > 0, "The installer is empty");
