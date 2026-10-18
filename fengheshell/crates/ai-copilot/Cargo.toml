@@ -1,0 +1,28 @@
+[package]
+name = "ai-copilot"
+version = "0.1.0"
+edition = "2021"
+description = "AI ops copilot core for FengheShell: ported rssh sanitize/redaction/shell/LLM logic + OSC 133 command blocks, risk-gated Run Gate, and monitor-aware triage engine"
+license = "MIT"
+repository = "https://cnb.cool/SecLab/FengheShell"
+
+[dependencies]
+# ── 从 rssh 移植的依赖（版本对齐上游，保证行为一致） ──
+regex = "1"
+regex-syntax = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+async-trait = "0.1"
+futures-util = "0.3"
+tree-sitter = "0.26.9"
+tree-sitter-bash = "0.25.1"
+# LLM 传输：rssh 同款 reqwest + rustls（无系统 OpenSSL 依赖），流式 SSE
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots", "stream", "system-proxy"] }
+tokio = { version = "1", features = ["sync", "macros", "net", "io-util", "rt", "time"] }
+# shell.rs 的 sentinel_command 生成 UUID marker
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.yituorou.fengheshell</id>
+  <name>FengheShell</name>
+  <summary>Lightweight SSH, SFTP, and terminal client</summary>
+  <summary xml:lang="zh-CN">轻量级 SSH、SFTP 和终端客户端</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <description>
+    <p>FengheShell is a cross-platform SSH, SFTP, and terminal client written in Rust and Slint.</p>
+    <p xml:lang="zh-CN">FengheShell 是使用 Rust 和 Slint 编写的跨平台 SSH、SFTP 和终端客户端。</p>
+  </description>
+  <launchable type="desktop-id">io.github.yituorou.fengheshell.desktop</launchable>
+  <url type="homepage">https://cnb.cool/SecLab/FengheShell</url>
+  <url type="bugtracker">https://cnb.cool/SecLab/FengheShell/-/issues</url>
+  <provides>
+    <binary>fengheshell</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+</component>

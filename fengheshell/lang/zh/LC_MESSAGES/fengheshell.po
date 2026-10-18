@@ -1,0 +1,765 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: fengheshell\n"
+"Language: zh\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Not connected"
+msgstr "未连接"
+
+msgid "Local resources"
+msgstr "本机资源"
+
+msgid "Server resources"
+msgstr "服务器资源"
+
+msgid "Download settings"
+msgstr "下载设置"
+
+msgid "Save downloads to:"
+msgstr "下载保存到："
+
+msgid "(ask every time)"
+msgstr "（每次下载时询问）"
+
+msgid "Choose folder"
+msgstr "选择文件夹"
+
+msgid "Choose save path"
+msgstr "选择保存路径"
+
+msgid "Upload file"
+msgstr "上传文件"
+
+msgid "Upload folder"
+msgstr "上传文件夹"
+
+msgid "Open folder"
+msgstr "打开目录"
+
+msgid "Transfers"
+msgstr "传输记录"
+
+msgid "Clear"
+msgstr "清空"
+
+msgid "No transfers yet"
+msgstr "暂无传输记录"
+
+msgid "About"
+msgstr "关于"
+
+msgid "About fengheshell"
+msgstr "关于 fengheshell"
+
+msgid "A lightweight Rust + Slint SSH terminal client."
+msgstr "一个轻量 Rust + Slint SSH 终端客户端。"
+
+msgid "Transfers manager"
+msgstr "传输管理"
+
+msgid "Open source · MIT / Apache-2.0"
+msgstr "开源项目 · 协议 MIT / Apache-2.0"
+
+msgid "Open-source libraries used"
+msgstr "使用的开源库"
+
+msgid "Open source"
+msgstr "开源"
+
+msgid "Edit session"
+msgstr "编辑会话"
+
+msgid "New session"
+msgstr "新建会话"
+
+msgid "Name"
+msgstr "名称"
+
+msgid "Name (optional)"
+msgstr "名称（可选）"
+
+msgid "e.g. production web-01"
+msgstr "例如：生产环境 web-01"
+
+msgid "e.g. Production / Database"
+msgstr "例如：生产 / 数据库"
+
+msgid "Host / IP"
+msgstr "主机 / IP"
+
+msgid "Port"
+msgstr "端口"
+
+msgid "Username"
+msgstr "用户名"
+
+msgid "Prompted on connect if blank"
+msgstr "留空则连接时询问"
+
+msgid "Authentication"
+msgstr "认证方式"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Private key"
+msgstr "私钥"
+
+msgid "Keyboard-interactive"
+msgstr "键盘交互"
+
+msgid "Password / first answer"
+msgstr "密码 / 首次应答"
+
+msgid "Server prompts are shown during login; MFA / OTP prompts will ask again."
+msgstr "登录时会显示服务器提示；MFA / OTP 会再次询问。"
+
+msgid "Leave blank to keep the current password"
+msgstr "留空则不修改密码"
+
+msgid "Key passphrase"
+msgstr "私钥密码"
+
+msgid "Leave blank if the key isn't encrypted"
+msgstr "若私钥未加密则留空"
+
+msgid "Leave blank to keep the current passphrase"
+msgstr "留空则不修改私钥密码"
+
+msgid "Private key file"
+msgstr "私钥文件"
+
+msgid "Paste private key"
+msgstr "粘贴私钥"
+
+msgid "Private key content is encrypted before saving."
+msgstr "私钥内容会加密后保存。"
+
+msgid "Browse…"
+msgstr "浏览…"
+
+msgid "Pick the private key itself (not the .pub public key)"
+msgstr "选择私钥本身（不是 .pub 公钥文件）"
+
+msgid "Login"
+msgstr "登录"
+
+msgid "Remember for this session"
+msgstr "仅本次会话记住"
+
+msgid "Please enter a host / IP address."
+msgstr "请输入主机 / IP 地址。"
+
+msgid "Please enter a serial port."
+msgstr "请输入串口。"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Create"
+msgstr "创建"
+
+msgid "Connect"
+msgstr "连接"
+
+msgid "Test connection"
+msgstr "测试连接"
+
+msgid "Testing..."
+msgstr "测试中..."
+
+msgid "Connection OK"
+msgstr "连接正常"
+
+msgid "Connection failed"
+msgstr "连接失败"
+
+msgid "Connection timed out"
+msgstr "连接超时"
+
+msgid "SFTP not connected"
+msgstr "SFTP 未连接"
+
+msgid "Upload"
+msgstr "上传"
+
+msgid "Directory tree"
+msgstr "目录树"
+
+msgid "Size"
+msgstr "大小"
+
+msgid "Modified"
+msgstr "修改时间"
+
+msgid "Type"
+msgstr "类型"
+
+msgid "Owner"
+msgstr "用户"
+
+msgid "Group"
+msgstr "用户组"
+
+msgid "Loading..."
+msgstr "加载中..."
+
+msgid "Empty directory"
+msgstr "目录为空"
+
+msgid "Download"
+msgstr "下载"
+
+msgid "Update available:"
+msgstr "发现新版本:"
+
+msgid "Open externally"
+msgstr "外部程序查看"
+
+msgid "Edit externally"
+msgstr "外部程序编辑"
+
+msgid "Rename"
+msgstr "重命名"
+
+msgid "Permissions"
+msgstr "权限"
+
+msgid "Copy path"
+msgstr "复制路径"
+
+msgid "Copy to session..."
+msgstr "复制到会话..."
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "New folder"
+msgstr "新建文件夹"
+
+msgid "New file"
+msgstr "新建文件"
+
+msgid "New name"
+msgstr "新名称"
+
+msgid "Octal mode, e.g. 755"
+msgstr "八进制权限,例如 755"
+
+msgid "Read-only"
+msgstr "只读"
+
+msgid "Modified"
+msgstr "已修改"
+
+msgid "View"
+msgstr "查看"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Delete"
+msgstr "删除"
+
+msgid "Duplicate"
+msgstr "复制副本"
+
+msgid "New group"
+msgstr "新建分组"
+
+msgid "Edit group"
+msgstr "编辑分组"
+
+msgid "Delete group"
+msgstr "删除分组"
+
+msgid "Group name"
+msgstr "分组名称"
+
+msgid "Move to"
+msgstr "移动到"
+
+msgid "Status"
+msgstr "运行状态"
+
+msgid "Memory"
+msgstr "内存"
+
+msgid "Swap"
+msgstr "交换"
+
+msgid "Local"
+msgstr "本机"
+
+msgid "Path"
+msgstr "路径"
+
+msgid "Free/Total"
+msgstr "可用/大小"
+
+msgid "Copy"
+msgstr "复制"
+
+msgid "Paste"
+msgstr "粘贴"
+
+msgid "Clear buffer"
+msgstr "清空缓存"
+
+msgid "Find"
+msgstr "查找"
+
+msgid "Processes"
+msgstr "进程"
+
+msgid "User"
+msgstr "用户"
+
+msgid "Command"
+msgstr "命令"
+
+msgid "No processes"
+msgstr "无进程"
+
+msgid "Quick"
+msgstr "快捷"
+
+msgid "Quick commands"
+msgstr "快捷命令"
+
+msgid "Type a command, Enter to send"
+msgstr "输入命令，回车发送"
+
+msgid "All sessions"
+msgstr "所有会话"
+
+msgid "Send"
+msgstr "发送"
+
+msgid "No quick commands yet"
+msgstr "暂无快捷命令"
+
+msgid "Group (optional)"
+msgstr "分组（可选）"
+
+msgid "Rename group"
+msgstr "重命名分组"
+
+msgid "leave empty → default"
+msgstr "留空 → 默认分组"
+
+msgid "Manage…"
+msgstr "管理…"
+
+msgid "No history yet"
+msgstr "暂无历史"
+
+msgid "e.g. tail log"
+msgstr "例如：查看日志"
+
+msgid "Search history"
+msgstr "搜索历史"
+
+msgid "Port forwarding"
+msgstr "端口转发"
+
+msgid "Advanced (encoding, proxy, tunnels)"
+msgstr "高级（字符集、代理、隧道）"
+
+msgid "Terminal character encoding"
+msgstr "终端字符集"
+
+msgid "Use GBK for servers configured for GB2312 or GBK output."
+msgstr "远端使用 GB2312 或 GBK 输出时请选择 GBK。"
+
+msgid "Enable VT100 line drawing even in UTF-8 mode"
+msgstr "启用 VT100 线框绘制（即使 UTF-8 模式）"
+
+msgid "Show box-drawing output from servers that switch charsets (ESC(0, SO/SI) while staying in UTF-8, e.g. top or mc frames."
+msgstr "服务器在 UTF-8 模式下仍通过 ESC(0 或 SO/SI 切换字符集时（如 top、mc 的边框），正确显示线框图形。"
+
+msgid "Local (-L)"
+msgstr "本地 -L"
+
+msgid "Remote (-R)"
+msgstr "远程 -R"
+
+msgid "Dynamic (-D)"
+msgstr "动态 -D"
+
+msgid "Listen port"
+msgstr "监听端口"
+
+msgid "Target host"
+msgstr "目标主机"
+
+msgid "Target port"
+msgstr "目标端口"
+
+msgid "Add"
+msgstr "添加"
+
+msgid "-L: local port → target reached from the server"
+msgstr "-L：本地端口 → 由服务器侧访问的目标"
+
+msgid "-R: server port → target reached from here"
+msgstr "-R：服务器端口 → 由本机访问的目标"
+
+msgid "-D: local SOCKS5 proxy"
+msgstr "-D：本地 SOCKS5 代理"
+
+msgid "fengheshell — a lightweight Rust + Slint SSH client by 'lil meatball'"
+msgstr "fengheshell — 一个由「一坨肉」开发的轻量 Rust + Slint SSH 客户端"
+
+msgid "A lightweight and efficient Rust + Slint SSH client"
+msgstr "一个轻量、高效的 Rust + Slint SSH 客户端"
+
+msgid "Terminal"
+msgstr "终端"
+
+msgid "Open a terminal or AI agent"
+msgstr "打开终端或 AI 智能体"
+
+msgid "Customize…"
+msgstr "自定义…"
+
+msgid "AI agents"
+msgstr "AI 智能体"
+
+msgid "Quick connect"
+msgstr "快速连接"
+
+msgid "+ New session"
+msgstr "+ 新建会话"
+
+msgid "No sessions yet"
+msgstr "尚无会话"
+
+msgid "Use 'New session' (top-right) to add your first server"
+msgstr "点击右上角 “新建会话” 添加你的第一台服务器"
+
+msgid "Import ~/.ssh/config"
+msgstr "导入 ~/.ssh/config"
+
+msgid "Proxy (optional)"
+msgstr "代理（可选）"
+
+msgid "No proxy — use $ALL_PROXY or connect directly"
+msgstr "不使用代理 — 使用 $ALL_PROXY 或直接连接"
+
+msgid "Leave blank to use $ALL_PROXY or connect directly"
+msgstr "留空则用 $ALL_PROXY 环境变量，或直接连接"
+
+msgid "Proxy address"
+msgstr "代理地址"
+
+msgid "Format: host:port  (with auth: user:pass@host:port)"
+msgstr "格式：host:port（带认证：user:pass@host:port）"
+
+msgid "Jump host (optional)"
+msgstr "跳板机（可选）"
+
+msgid "Tunnel this connection through another saved SSH session."
+msgstr "通过另一个已保存的 SSH 会话作为跳板来连接。"
+
+msgid "Connection type"
+msgstr "连接类型"
+
+msgid "Serial"
+msgstr "串口"
+
+msgid "Serial port"
+msgstr "串口号"
+
+msgid "Baud rate"
+msgstr "波特率"
+
+msgid "Data bits / Stop bits / Parity"
+msgstr "数据位 / 停止位 / 校验位"
+
+msgid "Flow control"
+msgstr "流控"
+
+msgid "None"
+msgstr "无"
+
+msgid "Note (optional)"
+msgstr "备注（可选）"
+
+msgid "Anything to remember about this host"
+msgstr "记录这个主机的备注信息"
+
+msgid "Hardware"
+msgstr "硬件"
+
+msgid "Software"
+msgstr "软件"
+
+msgid "Confirm delete"
+msgstr "确认删除"
+
+msgid "Delete this item? This cannot be undone."
+msgstr "确定删除此项？此操作不可撤销。"
+
+msgid "Please confirm"
+msgstr "请确认"
+
+msgid "Confirm"
+msgstr "确认"
+
+msgid "Interactive login compatibility mode"
+msgstr "自动登录脚本兼容模式"
+
+msgid "SFTP privileges"
+msgstr "SFTP 权限"
+
+msgid "Login user (default)"
+msgstr "登录用户（默认）"
+
+msgid "Root, via sudo"
+msgstr "root（通过 sudo）"
+
+msgid "Custom SFTP server command"
+msgstr "自定义 SFTP 服务器命令"
+
+msgid "SFTP server command"
+msgstr "SFTP 服务器命令"
+
+msgid "The SFTP panel runs sftp-server through sudo, so it can read and write files only root can. Needs passwordless sudo, or the saved login password when sudo asks for one."
+msgstr "SFTP 面板通过 sudo 运行 sftp-server，可读写仅 root 有权限的文件。需要免密 sudo，或在 sudo 要求密码时使用已保存的登录密码。"
+
+msgid "Runs this command instead of the sftp subsystem; it must speak SFTP on stdin/stdout. Folder downloads (tar) still run as the login user."
+msgstr "用此命令代替 sftp 子系统，命令须在标准输入/输出上提供 SFTP 服务。打包下载（tar）仍以登录用户身份运行。"
+
+msgid "The SFTP panel works as the user you log in with."
+msgstr "SFTP 面板以登录用户的身份工作。"
+
+msgid "For auto-login scripts or non-POSIX shells: skips shell hooks and remote monitoring while keeping SFTP available."
+msgstr "适用于自动登录脚本或非 POSIX shell：跳过 Shell 注入和远程监控，但保留 SFTP。"
+
+msgid "Split right"
+msgstr "向右拆分"
+
+msgid "Split down"
+msgstr "向下拆分"
+
+msgid "Close tab"
+msgstr "关闭标签页"
+
+msgid "Duplicate connection"
+msgstr "复制打开"
+
+msgid "Copied"
+msgstr "已复制"
+
+msgid "Clear sort"
+msgstr "清除排序"
+
+msgid "Terminate process"
+msgstr "结束进程"
+
+msgid "PID copied"
+msgstr "已复制 PID"
+
+msgid "Terminate this process? It may lose unsaved data."
+msgstr "确定结束此进程吗？未保存的数据可能会丢失。"
+
+msgid "This process belongs to root or another user. Enter your administrator (sudo) password to continue."
+msgstr "此进程属于 root 或其他用户，请输入当前登录用户的管理员（sudo）密码后继续。"
+
+msgid "Administrator password"
+msgstr "管理员（sudo）密码"
+
+msgid "Enter sudo password"
+msgstr "请输入 sudo 密码"
+
+msgid "Terminating process..."
+msgstr "正在结束进程..."
+
+msgid "Terminate"
+msgstr "结束进程"
+
+msgid "Search by name or host..."
+msgstr "按名称或主机搜索..."
+
+msgid "No matching sessions"
+msgstr "没有匹配的会话"
+
+msgid "Clear search"
+msgstr "清除搜索"
+
+msgid "Session name"
+msgstr "会话名称"
+
+msgid "Leave empty to restore the default name"
+msgstr "留空则恢复默认名称"
+
+msgid "Login triggers"
+msgstr "登录触发器"
+
+msgid "Expected output"
+msgstr "期望输出"
+
+msgid "Response (leave blank to keep saved value)"
+msgstr "回复内容（留空则保留已保存的值）"
+
+msgid "Send Enter"
+msgstr "发送 Enter"
+
+msgid "Repeat"
+msgstr "重复触发"
+
+msgid "Add trigger"
+msgstr "添加触发器"
+
+msgid "When expected text appears, send the response automatically. Responses are stored encrypted."
+msgstr "出现期望文本时自动发送回复。回复内容会加密保存。"
+
+msgid "DOMAIN\\user or user@domain"
+msgstr "域名\\用户名 或 user@domain"
+
+msgid "Domain (optional)"
+msgstr "域（可选）"
+
+
+
+
+
+msgid "Resolution"
+msgstr "分辨率"
+
+msgid "Full screen"
+msgstr "全屏"
+
+msgid "Custom"
+msgstr "自定义"
+
+msgid "Width"
+msgstr "宽度"
+
+msgid "Height"
+msgstr "高度"
+
+msgid "Remote desktop size. In full screen, Ctrl+Alt+Enter switches back to a window."
+msgstr "远端桌面的分辨率；全屏连接后按 Ctrl+Alt+Enter 可切回窗口。"
+
+msgid "Hide secret"
+msgstr "隐藏凭据"
+
+msgid "Show secret"
+msgstr "查看凭据"
+
+msgid "Jump chain (optional)"
+msgstr "跳板机链路（可选）"
+
+msgid "Local → hops below → target. First hop connects first."
+msgstr "本机 → 下列跳板机 → 目标。按实际连接顺序排列，第一项最先连接。"
+
+msgid "+ Add jump host"
+msgstr "+ 添加跳板机"
+
+msgid "Target"
+msgstr "目标"
+
+msgid "Move to hop"
+msgstr "移至跳板"
+
+msgid "Hop"
+msgstr "跳板"
+
+msgid "Allow viewing saved credentials in this session"
+msgstr "允许在此会话中查看已保存的凭据"
+
+msgid "Allow MCP access to this session"
+msgstr "允许 MCP 访问此会话"
+
+msgid "Hidden from MCP clients: they cannot list, connect to, or route through this session. The CLI is unaffected."
+msgstr "对 MCP 客户端隐藏：无法列出、连接此会话，也无法将其作为跳板。CLI 不受影响。"
+
+msgid "Unavailable"
+msgstr "不可用"
+
+msgid "Session log"
+msgstr "会话日志"
+
+msgid "Follow global"
+msgstr "跟随全局"
+
+msgid "Always record"
+msgstr "始终记录"
+
+msgid "Never record"
+msgstr "从不记录"
+
+msgid "Saves this session's terminal output as timestamped plain text. Keystrokes are not recorded. The folder is set in Settings → Session log."
+msgstr "将此会话的终端输出保存为带时间戳的纯文本，不记录按键。日志目录在「设置 → 会话日志」中设置。"
+
+msgid "Discard unsaved changes?"
+msgstr "放弃未保存的修改？"
+
+msgid "This file has unsaved changes. Close without saving?"
+msgstr "此文件有未保存的修改。确定不保存并关闭吗？"
+
+msgid "Discard and close"
+msgstr "放弃并关闭"
+
+msgid "Enter a new password"
+msgstr "输入新密码"
+
+msgid "Enter a key passphrase"
+msgstr "输入私钥口令"
+
+msgid "Credentials start hidden. Click the eye to view. Save to remember this option."
+msgstr "凭据默认隐藏，点击眼睛查看。保存后会记住此选项。"
+
+msgid "Save session"
+msgstr "保存会话"
+
+msgid "Create session"
+msgstr "创建会话"
+
+msgid "Endpoint"
+msgstr "端点"
+
+msgid "Model"
+msgstr "模型"
+
+msgid "Run"
+msgstr "执行"
+
+msgid "Fill terminal"
+msgstr "填入终端"
+
+msgid "Reject"
+msgstr "拒绝"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "AI"
+msgstr "AI"
+
+msgid "Diagnosing..."
+msgstr "诊断中..."
+
+msgid "AI Copilot"
+msgstr "AI Copilot"
+
+msgid "Protocol (openai-completions | deepseek-thinking | anthropic-messages | ollama)"
+msgstr "协议（openai-completions | deepseek-thinking | anthropic-messages | ollama）"
+
+msgid "API key (leave blank to keep the stored one)"
+msgstr "API Key（留空则保持已保存的密钥）"
+
+msgid "Redact secrets locally"
+msgstr "本地脱敏"
+
+msgid "Auto-run read-only commands"
+msgstr "只读命令免确认执行"
+

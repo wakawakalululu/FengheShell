@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=FengheShell
+GenericName=SSH Client
+GenericName[zh_CN]=SSH 客户端
+Comment=Lightweight Rust + Slint SSH/SFTP client
+Comment[zh_CN]=轻量级 Rust + Slint SSH/SFTP 客户端
+Exec=fengheshell
+Icon=io.github.yituorou.fengheshell
+Terminal=false
+# Keep one freedesktop main category so GNOME app-grid indexing is stable.
+Categories=Network;TerminalEmulator;
+Keywords=ssh;sftp;terminal;shell;
+StartupNotify=true
+StartupWMClass=fengheshell
