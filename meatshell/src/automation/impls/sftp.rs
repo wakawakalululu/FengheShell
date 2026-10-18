@@ -99,7 +99,7 @@ pub(super) async fn list(
     result
 }
 
-pub(super) async fn read_text(
+pub(crate) async fn read_text(
     session: Session,
     jump: Vec<Session>,
     path: String,

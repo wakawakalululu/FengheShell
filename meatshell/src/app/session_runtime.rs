@@ -105,6 +105,7 @@ pub(super) fn start_session_in_tab(tab_id: &str, session: Session, ctx: &Connect
         sftp_handles: ctx.sftp_handles.clone(),
         sftp_last_cwd: ctx.sftp_last_cwd.clone(),
         follow_cd: ctx.sftp_follow_cd.clone(),
+        ai: Arc::new(Mutex::new(TabAi::new())),
     }));
     if let Ok(mut routes) = ctx.tab_routes.lock() {
         routes.insert(tab_id.to_string(), route.clone());
@@ -307,6 +308,11 @@ pub(super) fn start_session_in_tab(tab_id: &str, session: Session, ctx: &Connect
                             let chunk_len = chunk.len();
                             let reply =
                                 ingest_terminal_output(&rt.bufs, &tab_id_pump, chunk.as_bytes());
+                            // AI Copilot: the same chunk also feeds the per-tab
+                            // command-block parser (OSC 133 / shell-hook fallback).
+                            if let Ok(mut ai) = rt.ai.lock() {
+                                ai.feed_output(&chunk);
+                            }
                             if !reply.is_empty() {
                                 let _ = terminal_reply_tx.send(SessionCommand::RawInput(reply));
                             }
@@ -335,6 +341,15 @@ pub(super) fn start_session_in_tab(tab_id: &str, session: Session, ctx: &Connect
                                     wait_for_ui_flush(ticket);
                                 }
                             }
+                        }
+                        SessionEvent::CommandRan(cmd) => {
+                            // MeatShell's own shell hook already reports each
+                            // executed command; use it as the block boundary
+                            // when the remote shell emits no OSC 133.
+                            if let Ok(mut ai) = rt.ai.lock() {
+                                ai.note_command(&cmd);
+                            }
+                            ui_only.push(SessionEvent::CommandRan(cmd));
                         }
                         other => ui_only.push(other),
                     }

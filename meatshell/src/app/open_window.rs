@@ -474,6 +474,9 @@ pub(super) fn open_window(
         });
     }
     wire_pane_sftp_and_font_zoom(&ctx, &terminals_model);
+    // AI Copilot drawer (#ai-copilot): needs the tab models to exist, so it is
+    // wired after the pane models are seeded.
+    wire_ai(&ctx);
 
     // Per-tab connection status + remote resources, the latest local sample,
     // and the local machine's network history (bottom sparkline).

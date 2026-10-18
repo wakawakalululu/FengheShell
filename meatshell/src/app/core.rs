@@ -40,6 +40,10 @@ pub struct TabRoute {
     pub sftp_handles: SftpHandles,
     pub sftp_last_cwd: SftpLastCwd,
     pub follow_cd: Arc<std::sync::atomic::AtomicBool>,
+    /// Per-tab AI Copilot state (OSC 133 command blocks + drawer content).
+    /// Shared with the shell pump, which feeds every output chunk into the
+    /// block parser off the UI thread.
+    pub ai: crate::app::ai::AiTabHandle,
 }
 
 /// Tab id → its current delivery route. Shared with the pump threads.

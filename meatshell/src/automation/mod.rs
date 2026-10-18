@@ -10,5 +10,6 @@ mod structs;
 #[path = "impls/tools.rs"]
 mod tools;
 
+pub(crate) use sftp::read_text;
 pub(crate) use structs::Frontend;
 pub(crate) use tools::call;
