@@ -3,6 +3,11 @@
 All notable changes are documented here. 本文件记录所有重要变更。
 中英对照（中文在前，English after）.
 
+## [未发布] - Unreleased
+
+- **新增 AI Copilot 抽屉（MeatShell × rssh 缝合）：终端状态条上的 `AI` 按钮打开右侧抽屉。** typing-text: 上下文走 OSC 133 命令块解析（没有时退回 MeatShell 自带的 shell hook，OSC 697），出网前做本地脱敏（内网 IP / 域名 / Token / 私钥 / `export` 敏感字段），AI 回代带占位符的命令在本机反向还原后才写入终端；命令卡片按只读 / 有副作用 / 高危三档决定「一键执行」还是「仅填入终端等你回车」，被 shape validator 拦下的命令不允许填入。每次提问都会带上本机资源监控快照，硬件异常时打开抽屉自动起一轮排查。支持 OpenAI 兼容接口、Anthropic 与本地 Ollama。详见 [docs/AI_COPILOT.md](docs/AI_COPILOT.md)。
+- **Add the AI Copilot drawer (MeatShell x rssh): the `AI` button on the terminal status strip opens it on the right.** Context comes from OSC 133 command blocks, falling back to MeatShell's own shell hook (OSC 697); private IPs / hosts / tokens / private keys / sensitive `export` fields are redacted locally before anything leaves the machine, and commands the model echoes back with placeholders are restored locally before reaching the shell. Suggested commands are gated read-only / mutating / destructive: green can run in one click, amber-red is only filled into the terminal for you to press Enter, and anything the shape validator refuses cannot be filled at all. Every question carries the live resource snapshot, and opening the drawer during a hardware spike starts a triage round on its own. OpenAI-compatible endpoints, Anthropic and local Ollama are supported. See [docs/AI_COPILOT.md](docs/AI_COPILOT.md).
+
 ## [0.7.8] - 2026-10-18
 
 - **应用内一键更新（#390、#497）。** 检测到新版本后，“设置”中的更新按钮可直接下载并安装：先下载并校验 SHA-256，再点击“安装并重启”，程序会关闭所有窗口、替换为新版本并自动重新打开。MSI 安装版交由 Windows Installer 升级（感谢 @yanmuq，#497）；Windows 便携版（.zip）、Linux AppImage 与 .tar.gz、macOS .app 会直接替换自身文件，替换失败时自动回滚。便携版的 `config/` 与 `log/` 数据目录不会被改动。通过 .deb、Flatpak 或 AUR 安装的版本会提示使用系统包管理器更新；安装在无写入权限位置（如 Program Files、`/usr/local/bin`）的版本仍打开发布页面。

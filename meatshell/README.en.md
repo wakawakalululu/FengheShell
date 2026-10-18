@@ -111,6 +111,13 @@ open /Applications/meatshell.app
 - [x] Known-hosts (`known_hosts`) verification + first-connect confirmation
 - [x] Split panes for tabbed terminals
 - [x] Multiple windows: Ctrl+Shift+N (macOS ⌘⇧N) or the system "New window" entry (Windows taskbar / Linux desktop right-click), managed as a single Chrome-style process
+- [x] **AI Copilot drawer (built-in ops assistant)**: open it from the `AI` button on the terminal status strip
+  - Local redaction before anything leaves the machine (private IPs / hosts / tokens / private keys / sensitive `export` fields); commands the model echoes back with placeholders are restored locally before reaching the shell
+  - Context comes from command-block parsing: OSC 133 semantic blocks when available, otherwise MeatShell's own shell hook (OSC 697), capped at the last 8 KB
+  - Every question carries the live local resource snapshot (CPU / memory / disks / network), and opening the drawer during a hardware spike starts a triage round automatically
+  - Human-in-the-loop run gate: read-only suggestions are green (run in one click), mutating / destructive ones are amber-red (filled into the terminal for you to press Enter), and anything the shape validator refuses cannot even be filled
+  - OpenAI-compatible endpoints (OpenAI / DeepSeek / Groq), Anthropic, and local Ollama are supported; settings live in the local config file and the API key is encrypted like every other stored secret
+  - See [docs/AI_COPILOT.md](docs/AI_COPILOT.md)
 
 Color emoji graphics are provided by [Twemoji](https://github.com/jdecked/twemoji)
 under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). See

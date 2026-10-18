@@ -106,6 +106,13 @@ open /Applications/meatshell.app
 - [x] 已知主机（`known_hosts`）校验 + 首次连接确认
 - [x] 多标签页终端分屏
 - [x] 多窗口：Ctrl+Shift+N（macOS ⌘⇧N）或系统入口“新建窗口”（Windows 任务栏 / Linux 桌面右键），Chrome 式单进程管理
+- [x] **AI Copilot 抽屉（内置 AI 运维助手）**：终端状态条上的 `AI` 按钮打开右侧抽屉
+  - 出网前先做本地脱敏（内网 IP / 域名 / Token / 私钥 / `export` 敏感字段）；AI 回代带占位符的命令会在本机还原后才写入终端
+  - 上下文来自命令块解析：优先 OSC 133 语义块，没有时退回 MeatShell 自带的 shell hook（OSC 697），只留最近 8 KB
+  - 每次提问都会带上本机资源监控快照（CPU / 内存 / 磁盘 / 网络），硬件异常时打开抽屉会自动起一轮排查
+  - Human-in-the-loop 执行网关：只读命令标绿（一键执行），有副作用 / 高危命令标橙红（只填入终端等你回车），被 shape validator 拦下的命令连填入都不允许
+  - 支持 OpenAI 兼容接口（OpenAI / DeepSeek / Groq）、Anthropic 与本地 Ollama；设置保存在本地配置文件，API Key 与其它密码一样加密存储
+  - 详见 [docs/AI_COPILOT.md](docs/AI_COPILOT.md)
 
 彩色 emoji 图形来自 [Twemoji](https://github.com/jdecked/twemoji)，按
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；完整署名见
@@ -298,14 +305,20 @@ meatshell/
 │   ├── tabs.slint           # 顶部标签栏
 │   ├── welcome.slint        # 欢迎页 / 快速连接
 │   ├── session_dialog.slint # 新建 / 编辑会话弹框
+│   ├── ai_panel.slint       # AI Copilot 抽屉（消息流 + 命令卡片 + LLM 设置）
 │   └── terminal_view.slint  # 终端视图（v0.1 行缓冲）
+├── crates/
+│   └── ai-copilot/          # AI 运维 Copilot 核心（rssh 逻辑移植 + OSC 133 命令块）
 └── src/
     ├── main.rs
     ├── app.rs               # UI ↔ 后端桥接
+    │   └── ai.rs            # 抽屉状态机 + ToolRuntime 宿主实现
     ├── config.rs            # 会话 JSON 持久化
     ├── system.rs            # CPU / 内存 / 网络采样
     └── ssh.rs               # SSH 会话 worker
 ```
+
+AI Copilot 的三层解耦与执行约束见 [docs/AI_COPILOT.md](docs/AI_COPILOT.md)。
 
 ## 开发提示
 
