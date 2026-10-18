@@ -31,13 +31,14 @@ use serde::Serialize;
 use crate::blocks::CommandBlock;
 use crate::error::AppResult;
 use crate::llm::{
-    build_client, ChatMessage, ChatRequest, ChatResponse, DeltaSink, LlmClient, ToolSchema,
+    build_client, ChatDelta, ChatMessage, ChatRequest, ChatResponse, DeltaSink, LlmClient,
+    ToolSchema,
 };
 use crate::redact::{RedactionMap, IndexedRedactor};
 use crate::risk::{assess_command, gate_of, Gate, RiskLevel};
 use crate::sanitize::{self, DEFAULT_MAX_OUTPUT_BYTES};
 use crate::shell::ShellKind;
-use crate::tools::{all_tools, RunCommandInput, TOOL_RUN_COMMAND};
+use crate::tools::{all_tools, RunCommandInput, TOOL_RUN_COMMAND, TOOL_SET_PLAN};
 
 /// 内置 system prompt（rssh prompts/general.md 移植 + 品牌化）。
 const SYSTEM_PROMPT: &str = include_str!("prompts/general.md");
@@ -51,11 +52,13 @@ const AGENT_PROMPT: &str = "
 You are expected to drive the investigation to a conclusion, not just answer:
 
 1. Understand the goal and its constraints (what is allowed to change).
-2. Gather evidence with read-only probes before forming a theory.
-3. Decide the smallest change that could fix it.
-4. Carry it out through tools (mutating commands still need user approval).
-5. Verify: re-run a read-only probe and report what actually changed.
-6. Finish with a short report: cause, what you ran, result, and anything left.
+2. Publish your plan first with the `set_plan` tool (2-6 short steps) - the user
+   watches it as a checklist, so keep each step to one action.
+3. Gather evidence with read-only probes before forming a theory.
+4. Decide the smallest change that could fix it.
+5. Carry it out through tools (mutating commands still need user approval).
+6. Verify: re-run a read-only probe and report what actually changed.
+7. Finish with a short report: cause, what you ran, result, and anything left.
 
 Do not invent evidence - if a probe fails, say so and try another one.
 Keep every step visible: the user sees your tool calls as a step list.
@@ -65,11 +68,13 @@ Keep every step visible: the user sees your tool calls as a step list.
 要求你把排查推进到结论，而不只是回答：
 
 1. 理解目标与约束（哪些东西允许被改动）。
-2. 先用只读探测取证，再给出判断。
-3. 选择最小改动的修复路径。
-4. 通过工具落地（有副作用的命令仍需用户批准）。
-5. 验证：再跑一次只读探测，说明实际发生了什么变化。
-6. 最后给一份简短汇报：原因、执行过的命令、结果、遗留事项。
+2. 先用 set_plan 工具发布计划（2-6 条短步骤），用户会把它当成清单实时看着，
+   所以一条步骤只对应一个动作。
+3. 用只读探测取证，再给出判断。
+4. 选择最小改动的修复路径。
+5. 通过工具落地（有副作用的命令仍需用户批准）。
+6. 验证：再跑一次只读探测，说明实际发生了什么变化。
+7. 最后给一份简短汇报：原因、执行过的命令、结果、遗留事项。
 
 不要编造证据；探测失败就明说并换一条路径。每一步都要可见 —— 用户会把你的工具调用看成步骤列表。
 ";
@@ -323,6 +328,38 @@ pub struct CommandOutcome {
     pub timed_out: bool,
 }
 
+/// Agent 计划清单里一条步骤的状态。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlanStepState {
+    /// 还没轮到。
+    Pending,
+    /// 正在执行（清单里排在最前面的未完成步骤）。
+    Running,
+    /// 对应的一次工具调用成功了。
+    Done,
+    /// 对应的一次工具调用失败/被拦下。
+    Failed,
+}
+
+impl PlanStepState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PlanStepState::Pending => "pending",
+            PlanStepState::Running => "running",
+            PlanStepState::Done => "done",
+            PlanStepState::Failed => "failed",
+        }
+    }
+}
+
+/// Agent 计划清单里的一条步骤。
+#[derive(Debug, Clone, Serialize)]
+pub struct PlanStep {
+    pub text: String,
+    pub state: PlanStepState,
+}
+
 /// 工具调用痕迹（UI 时间线 + 调试）。
 #[derive(Debug, Clone)]
 pub struct ToolLogEntry {
@@ -332,12 +369,42 @@ pub struct ToolLogEntry {
     pub at: DateTime<Utc>,
 }
 
+/// 计划清单的推进规则：第 n 次工具调用的结果决定第 n 步的状态。
+///
+/// 这是有意做的简化 —— 让模型每次都回报「哪些步骤完成了」既啰嗦又不可靠，
+/// 而一份计划里的步骤与实际行动基本是一一对应的。清单只用于**展示进度**，
+/// 真正的执行结果仍然以命令卡片和步骤痕迹为准。
+fn advance_plan(plan: &mut Vec<PlanStep>, failed: bool) {
+    if plan.is_empty() {
+        return;
+    }
+    let idx = plan
+        .iter()
+        .position(|s| s.state == PlanStepState::Running)
+        .unwrap_or_else(|| plan.len());
+    if let Some(step) = plan.get_mut(idx) {
+        step.state = if failed {
+            PlanStepState::Failed
+        } else {
+            PlanStepState::Done
+        };
+    }
+    // 下一步进入进行中。
+    if let Some(next) = plan.get_mut(idx + 1) {
+        if next.state == PlanStepState::Pending {
+            next.state = PlanStepState::Running;
+        }
+    }
+}
+
 /// 一次 ask() 的总输出。
 #[derive(Debug, Clone)]
 pub struct TriageOutcome {
     /// LLM 最终文本（已反向脱敏还原）。
     pub text: String,
     pub proposed: Vec<ProposedCommand>,
+    /// Agent 模式下的计划清单（Ask 模式恒为空）。
+    pub plan: Vec<PlanStep>,
     pub tool_log: Vec<ToolLogEntry>,
     /// 本次脱敏映射（UI 若要展示「还原视图」可用；敏感，不外泄）。
     pub redaction_map: RedactionMap,
@@ -422,6 +489,7 @@ impl TriageEngine {
         let user = redact(&self.build_user_message(ctx), &mut map);
         let mut messages = vec![ChatMessage::User { content: user }];
         let mut proposed: Vec<ProposedCommand> = Vec::new();
+        let mut plan: Vec<PlanStep> = Vec::new();
         let mut tool_log: Vec<ToolLogEntry> = Vec::new();
         let mut final_resp: Option<ChatResponse> = None;
 
@@ -450,8 +518,16 @@ impl TriageEngine {
                 reasoning_content: resp.reasoning_content.clone(),
             });
             for call in &resp.tool_calls {
-                let (content, is_error, summary) =
-                    self.execute_tool(call, &mut proposed, &mut map).await;
+                let (content, is_error, summary) = self
+                    .execute_tool(call, &mut proposed, &mut map, &mut plan, &sink)
+                    .await;
+                // 计划清单按「第 n 次**动作型**工具调用对应第 n 步」推进：成功置
+                // done，失败/被拦下置 failed，并把下一步标成进行中。
+                // set_plan 自己不算一步，否则刚发布就推进一格。
+                if call.name.as_str() != TOOL_SET_PLAN {
+                    advance_plan(&mut plan, is_error);
+                    (sink)(ChatDelta::Plan(plan.clone()));
+                }
                 tool_log.push(ToolLogEntry {
                     tool: call.name.clone(),
                     summary,
@@ -481,9 +557,16 @@ impl TriageEngine {
             p.cmd = map.restore(&p.cmd);
         }
 
+        // 收尾时把「进行中」的状态收干净：要么 done，要么 failed。
+        for step in &mut plan {
+            if step.state == PlanStepState::Running {
+                step.state = PlanStepState::Done;
+            }
+        }
         Ok(TriageOutcome {
             text: map.restore(&resp.text),
             proposed,
+            plan: plan.clone(),
             tool_log,
             redaction_map: map,
             tokens_in: resp.tokens_in,
@@ -545,6 +628,10 @@ impl TriageEngine {
             .into_iter()
             .filter(|t| t.name == TOOL_RUN_COMMAND)
             .collect();
+        // 计划清单只在 Agent 模式暴露：Ask 模式下没有「多步推进」这回事。
+        if self.cfg.mode.is_agent() {
+            v.extend(all_tools().into_iter().filter(|t| t.name == TOOL_SET_PLAN));
+        }
         v.push(ToolSchema {
             name: TOOL_READ_REMOTE_FILE.into(),
             description: "Read a remote text file through the SFTP/automation layer (bounded bytes). Use it to inspect logs and configs without leaving the drawer.".into(),
@@ -561,11 +648,17 @@ impl TriageEngine {
     }
 
     /// 执行一个工具调用。返回 (tool_result 内容, is_error, 时间线摘要)。
+    ///
+    /// `plan` 是 Agent 的计划清单：工具调用按出现顺序逐条推进它的状态，
+    /// 每次变化都会通过 `sink` 推给 UI，所以用户看到的是实时清单而不是
+    /// 事后回放。
     async fn execute_tool(
         &self,
         call: &crate::llm::ToolCall,
         proposed: &mut Vec<ProposedCommand>,
         map: &mut RedactionMap,
+        plan: &mut Vec<PlanStep>,
+        sink: &crate::llm::DeltaSink,
     ) -> (String, bool, String) {
         let redact = |s: &str, map: &mut RedactionMap| -> String {
             if self.cfg.redaction_enabled {
@@ -575,6 +668,41 @@ impl TriageEngine {
             }
         };
         match call.name.as_str() {
+            // 计划清单：只写 UI，不碰主机。
+            TOOL_SET_PLAN => {
+                let steps: Vec<String> = call
+                    .input
+                    .get("steps")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|s| s.as_str().map(str::to_string))
+                            .filter(|s| !s.trim().is_empty())
+                            .take(8)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if steps.is_empty() {
+                    return ("set_plan needs a non-empty `steps` array".into(), true, "empty plan".into());
+                }
+                *plan = steps
+                    .into_iter()
+                    .map(|text| PlanStep {
+                        text,
+                        state: PlanStepState::Pending,
+                    })
+                    .collect();
+                // 第一条标记为进行中，用户立刻知道从哪一步开始。
+                if let Some(first) = plan.first_mut() {
+                    first.state = PlanStepState::Running;
+                }
+                (sink)(ChatDelta::Plan(plan.clone()));
+                return (
+                    format!("plan published: {} steps. Follow it in order.", plan.len()),
+                    false,
+                    format!("planned {} steps", plan.len()),
+                );
+            }
             TOOL_RUN_COMMAND => {
                 let input: RunCommandInput = match serde_json::from_value(call.input.clone()) {
                     Ok(i) => i,
@@ -835,6 +963,63 @@ mod tests {
             redactor: IndexedRedactor::builtin(),
             cancel: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    #[tokio::test]
+    async fn agent_plan_is_published_and_advances_with_each_step() {
+        use std::sync::Mutex;
+
+        let rt = Arc::new(MockRuntime::default());
+        rt.approved.store(true, std::sync::atomic::Ordering::SeqCst);
+        let plan_steps: Vec<String> = vec![
+            "看 CPU 占用".into(),
+            "找出占 CPU 最高的进程".into(),
+            "确认它是否异常".into(),
+        ];
+        let eng = engine(
+            vec![
+                resp_with_tools(vec![tool_call(
+                    "p1",
+                    TOOL_SET_PLAN,
+                    serde_json::json!({ "steps": plan_steps }),
+                )]),
+                resp_with_tools(vec![tool_call(
+                    "t1",
+                    TOOL_RUN_COMMAND,
+                    serde_json::json!({"cmd": "ps aux --sort=-%cpu | head -n 5", "explain": "看占用", "side_effect": "无"}),
+                )]),
+                resp_final("结论".into()),
+            ],
+            rt.clone(),
+        );
+        let seen: Arc<Mutex<Vec<Vec<String>>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink_seen = seen.clone();
+        let sink: DeltaSink = Arc::new(move |delta| {
+            if let ChatDelta::Plan(steps) = delta {
+                sink_seen
+                    .lock()
+                    .unwrap()
+                    .push(steps.iter().map(|s| s.text.clone()).collect());
+            }
+        });
+        // 切到 Agent：Ask 模式下 set_plan 工具根本不会被暴露。
+        let mut cfg = CopilotConfig::default();
+        cfg.mode = CopilotMode::Agent;
+        let eng = {
+            let mut e = eng;
+            e.cfg = cfg;
+            e
+        };
+        let out = eng.ask(&ctx(), Some(sink)).await.unwrap();
+        assert_eq!(out.plan.len(), 3);
+        assert_eq!(out.plan[0].text, "看 CPU 占用");
+        // 一次成功调用推进一步：第一步 done，第二步 running。
+        assert_eq!(out.plan[0].state, PlanStepState::Done);
+        assert_eq!(out.plan[1].state, PlanStepState::Done, "收尾时 running 也会被收干净");
+        assert_eq!(out.plan[2].state, PlanStepState::Pending);
+        // 实时推送至少两帧：发布计划 + 推进一次。
+        let frames = seen.lock().unwrap().len();
+        assert!(frames >= 2, "计划变化要实时推给 UI，实际 {frames} 帧");
     }
 
     #[test]

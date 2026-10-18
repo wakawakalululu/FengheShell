@@ -9,6 +9,8 @@ use serde_json::json;
 use crate::llm::ToolSchema;
 
 pub const TOOL_RUN_COMMAND: &str = "run_command";
+/// Agent 模式专用：把计划写进 UI 的清单里。无副作用，不碰主机。
+pub const TOOL_SET_PLAN: &str = "set_plan";
 pub const TOOL_LOAD_SKILL: &str = "load_skill";
 pub const TOOL_DOWNLOAD_FILE: &str = "download_file";
 pub const TOOL_ANALYZE_LOCALLY: &str = "analyze_locally";
@@ -23,6 +25,25 @@ pub const MATCH_CONTEXT_MAX: u32 = 400;
 
 pub fn all_tools() -> Vec<ToolSchema> {
     vec![
+        ToolSchema {
+            name: TOOL_SET_PLAN.into(),
+            description: "Publish (or replace) the step-by-step plan shown to the user as a \
+                checklist. Call it once at the start of an agent task with every step you \
+                intend to take, in order; call it again only if the plan materially changes. \
+                This tool has no side effect on the host.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "steps": {
+                        "type": "array",
+                        "description": "The plan steps in execution order, each a short imperative sentence.",
+                        "items": { "type": "string" },
+                        "maxItems": 8
+                    }
+                },
+                "required": ["steps"]
+            }),
+        },
         ToolSchema {
             name: TOOL_LOAD_SKILL.into(),
             description: "Load the full content of a skill from the system-prompt catalog. \

@@ -126,6 +126,8 @@ pub enum ChatDelta {
         tool_call_id: String,
         partial: String,
     },
+    /// Agent 模式下的计划清单快照：整份替换，UI 直接重画。
+    Plan(Vec<crate::triage::PlanStep>),
 }
 
 pub type DeltaSink = Arc<dyn Fn(ChatDelta) + Send + Sync>;
