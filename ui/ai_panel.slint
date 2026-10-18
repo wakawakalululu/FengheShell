@@ -25,6 +25,9 @@ export component AiPanel inherits Rectangle {
     in property <bool> busy: false;
     /// 工作方式：`ask` | `agent`（对应 GitHub Copilot 的对话层 / 代理层）。
     in-out property <string> mode: "ask";
+    /// 补全层开关（Copilot 第一层：命令栏的幽灵文本）。
+    in-out property <bool> completion-enabled: true;
+    callback set-completion(bool);
     /// 空会话时的起手建议（Copilot 的 starter suggestions）。
     in property <[string]> starters: [];
     in property <string> protocol: "openai-completions";
@@ -226,6 +229,19 @@ export component AiPanel inherits Rectangle {
                                 color: Theme.text-secondary;
                                 vertical-alignment: center;
                             }
+                // 补全层总开关（关掉后命令栏不再出现幽灵文本，也不再发请求）。
+                Rectangle {
+                    comp-ta := TouchArea {
+                        width: comp-row.width;
+                        height: comp-row.height;
+                        clicked => { root.completion-enabled = !root.completion-enabled; root.set-completion(root.completion-enabled); }
+                    }
+                    comp-row := HorizontalLayout {
+                        spacing: 4px;
+                        Text { text: root.completion-enabled ? "\u{E834}" : "\u{E835}"; font-family: "Material Icons"; font-size: 15px; color: Theme.text-secondary; vertical-alignment: center; }
+                        Text { text: @tr("Command completion"); color: Theme.text-secondary; font-size: Theme.fs-sm; vertical-alignment: center; }
+                    }
+                }
                             Text {
                                 text: @tr("Redact secrets locally");
                                 color: Theme.text-secondary;

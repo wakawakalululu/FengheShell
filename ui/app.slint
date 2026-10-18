@@ -736,6 +736,8 @@ export component AppWindow inherits Window {
     callback ai-set-mode(string);
     /// 补全层：命令输入框内容变化时请求一次补全（空串 = 清除建议）。
     callback ai-complete-request(string, string);
+    in-out property <bool> ai-completion-enabled: true;
+    callback ai-set-completion(bool);
     in-out property <bool> mcp-enabled: true;
     in-out property <bool> mcp-use-saved-credentials: true;
     in-out property <bool> mcp-allow-commands: true;
@@ -2101,6 +2103,8 @@ export component AppWindow inherits Window {
                         ai-busy: term.ai-busy;
                         ai-completion: term.ai-completion;
                         ai-complete-request(text) => { root.ai-complete-request(term.id, text); }
+                        ai-completion-enabled <=> root.ai-completion-enabled;
+                        ai-set-completion(v) => { root.ai-set-completion(v); }
                         ai-protocol: root.ai-protocol;
                         ai-endpoint: root.ai-endpoint;
                         ai-model: root.ai-model;
@@ -5039,6 +5043,8 @@ export component AppWindow inherits Window {
                     ai-model <=> root.ai-model;
                     ai-redaction-enabled <=> root.ai-redaction-enabled;
                     ai-auto-run-readonly <=> root.ai-auto-run-readonly;
+                    ai-completion-enabled <=> root.ai-completion-enabled;
+                    ai-set-completion(v) => { root.ai-set-completion(v); }
                     ai-apply-settings(p, e, m, k, r, a) => {
                         root.ai-apply-settings(p, e, m, k, r, a);
                     }

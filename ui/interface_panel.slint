@@ -424,6 +424,8 @@ export component InterfacePanel inherits Rectangle {
     in-out property <string> ai-api-key-input: "";
     in-out property <bool> ai-redaction-enabled: true;
     in-out property <bool> ai-auto-run-readonly: false;
+    in-out property <bool> ai-completion-enabled: true;
+    callback ai-set-completion(bool);
     callback ai-apply-settings(string, string, string, string, bool, bool);
     in-out property <bool> mcp-enabled: true;
     in-out property <bool> mcp-use-saved-credentials: true;
@@ -1578,6 +1580,17 @@ export component InterfacePanel inherits Rectangle {
                     Switch {
                         on: root.ai-redaction-enabled;
                         toggled(v) => { root.ai-redaction-enabled = v; }
+                    }
+                }
+                SettingRow {
+                    label: root.lang-en ? "Command completion" : "命令补全";
+                    desc: root.lang-en
+                        ? "Ghost-text suggestions in the command bar (Tab accepts). Costs a tiny LLM call per pause while typing."
+                        : "命令栏里的幽灵文本建议（Tab 接受）。输入停顿时会有一次很小的模型调用。";
+                    show-divider: false;
+                    Switch {
+                        on: root.ai-completion-enabled;
+                        toggled(v) => { root.ai-completion-enabled = v; root.ai-set-completion(v); }
                     }
                 }
                 SettingRow {

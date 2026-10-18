@@ -337,6 +337,9 @@ pub struct ConfigFile {
     /// 工作方式：`ask`（对话，只给建议）| `agent`（代理，自己取证/执行/验证）。
     #[serde(default)]
     pub ai_mode: String,
+    /// 关闭补全层（命令栏的幽灵文本）。反向前缀：默认开启。
+    #[serde(default)]
+    pub ai_no_completion: bool,
     /// One-time default-layout migration marker (#new-user-defaults). 0 = config
     /// predates the migration. `migrate_defaults` bumps it to `DEFAULTS_REV` after
     /// pushing the new look (default wallpaper / welcome-as-sidebar / right-docked

@@ -1631,6 +1631,15 @@ impl ConfigStore {
         self.cache.ai_mode = mode.as_str().to_string();
     }
 
+    /// 补全层（命令栏幽灵文本）是否启用。
+    pub fn ai_completion_enabled(&self) -> bool {
+        !self.cache.ai_no_completion
+    }
+
+    pub fn set_ai_completion_enabled(&mut self, enabled: bool) {
+        self.cache.ai_no_completion = !enabled;
+    }
+
     pub fn set_ai_settings(
         &mut self,
         protocol: String,
@@ -2050,6 +2059,21 @@ mod tests {
             cache: ConfigFile::default(),
             key: [7u8; 32],
         }
+    }
+
+    #[test]
+    fn completion_toggle_round_trips_and_defaults_to_on() {
+        let mut store = temp_store();
+        // 默认开启。
+        assert!(store.ai_completion_enabled());
+        store.set_ai_completion_enabled(false);
+        assert!(!store.ai_completion_enabled());
+        store.set_ai_completion_enabled(true);
+        assert!(store.ai_completion_enabled());
+        // 旧配置文件没有这个字段时同样按「开启」处理。
+        let mut legacy = temp_store();
+        legacy.cache = serde_json::from_str("{}").expect("legacy config must deserialize");
+        assert!(legacy.ai_completion_enabled());
     }
 
     #[test]

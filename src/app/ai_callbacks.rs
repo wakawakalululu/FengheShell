@@ -356,6 +356,7 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
         window.set_ai_redaction_enabled(s.ai_redaction_enabled());
         window.set_ai_auto_run_readonly(s.ai_auto_run_readonly());
         window.set_ai_mode(s.ai_mode().as_str().into());
+        window.set_ai_completion_enabled(s.ai_completion_enabled());
     }
 
     // --- 补全层（Copilot 第一层）-----------------------------------------
@@ -367,11 +368,11 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
             let Some(ai) = ai_handle(&core, &tab_id) else {
                 return;
             };
-            // 输入太短、或压根没配密钥 —— 直接清空旧建议，不发请求。
+            // 输入太短、没配密钥、或补全层被关掉 —— 直接清空旧建议，不发请求。
             let cleared = prefix.trim().len() < 3
                 || !{
                     let s = store.borrow();
-                    !s.ai_api_key().trim().is_empty()
+                    s.ai_completion_enabled() && !s.ai_api_key().trim().is_empty()
                 };
             let seq = completion_request(&ai);
             if cleared {
@@ -413,6 +414,26 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
                     set_completion(&weak, &tab, &suggestion);
                 }
             });
+        });
+    }
+
+    // --- 补全层开关 -------------------------------------------------------
+    {
+        let core = core.clone();
+        let store = store.clone();
+        let win = window.clone();
+        window.on_ai_set_completion(move |enabled: bool| {
+            {
+                let mut s = store.borrow_mut();
+                s.set_ai_completion_enabled(enabled);
+                let _ = s.save();
+            }
+            core.registry.for_each(|weak| {
+                if let Some(w) = weak.upgrade() {
+                    w.set_ai_completion_enabled(enabled);
+                }
+            });
+            win.set_ai_completion_enabled(enabled);
         });
     }
 

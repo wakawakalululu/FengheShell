@@ -321,7 +321,9 @@ export component TerminalView inherits Rectangle {
     in property <bool> ai-auto-run-readonly: false;
     /// 补全层：命令输入框的「幽灵文本」建议。
     in property <string> ai-completion: "";
+    in-out property <bool> ai-completion-enabled: true;
     callback ai-complete-request(string);
+    callback ai-set-completion(bool);
     in-out property <string> ai-test-status: "";
     in-out property <bool> ai-test-busy: false;
     in-out property <string> ai-mode: "ask";
