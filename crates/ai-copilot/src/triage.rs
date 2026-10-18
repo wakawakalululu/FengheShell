@@ -397,6 +397,87 @@ fn advance_plan(plan: &mut Vec<PlanStep>, failed: bool) {
     }
 }
 
+
+/// 补全层（对应 GitHub Copilot 的代码补全）：给一个还没敲完的命令前缀，
+/// 预测「后面应该接什么」。刻意做得又小又快 —— 不带工具、不流式、
+/// `max_tokens` 只有 64，所以一次补全只花几十个 token。
+const COMPLETION_PROMPT: &str = r#"You complete shell commands for an ops terminal.
+
+Rules:
+- Output ONLY the completion - no explanation, no markdown fence, no quotes.
+- Do not repeat the prefix that is already typed.
+- Prefer read-only, non-destructive commands; never suggest rm/mkfs/dd/shutdown.
+- Keep it a single line and syntactically valid POSIX shell.
+- If you cannot do better than the prefix itself, output an empty string.
+
+你是一个运维终端的命令补全器。
+
+规则：
+- 只输出补全内容，不要解释、不要代码块、不要引号。
+- 不要重复用户已经输入的前缀。
+- 优先只读、无破坏性的命令；绝不给出 rm / mkfs / dd / shutdown。
+- 保持单行且是合法的 POSIX shell。
+- 如果给不出比前缀更好的结果，就输出空字符串。
+"#;
+
+/// 一次补全请求的上下文（可选）：让模型知道目标主机的大致情况。
+#[derive(Debug, Clone, Default)]
+pub struct CompletionContext {
+    /// 最近执行过的命令（最早 → 最新），只取尾部几条。
+    pub recent_commands: Vec<String>,
+    /// 当前工作目录（OSC 7 拿到时）。
+    pub cwd: Option<String>,
+}
+
+impl CompletionContext {
+    fn as_prompt(&self) -> String {
+        let mut s = String::new();
+        if let Some(cwd) = &self.cwd {
+            s.push_str(&format!("cwd: {cwd}\n"));
+        }
+        if !self.recent_commands.is_empty() {
+            s.push_str("recent commands:\n");
+            for cmd in self.recent_commands.iter().rev().take(5) {
+                s.push_str(&format!("- {cmd}\n"));
+            }
+        }
+        s
+    }
+}
+
+/// 把模型回的补全清洗成可以嵌在输入后面的纯文本：丢掉代码块围栏、引号、解释性前缀，
+/// 只留第一行，并去掉模型「顺手重复」的前缀。
+fn clean_completion(raw: &str, prefix: &str) -> String {
+    let mut text = raw.trim().to_string();
+    // ```sh\ncmd\n```
+    if text.starts_with("```") {
+        text = text
+            .trim_start_matches('`')
+            .lines()
+            .skip_while(|l| !l.trim().is_empty() && l.trim().chars().all(|c| !c.is_whitespace()) && !l.contains(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        text = text.replace("```", "");
+    }
+    // 只要第一行：补全不该跨行。
+    let first = text.lines().next().unwrap_or("").trim().to_string();
+    let mut out = first
+        .trim_matches('`')
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim()
+        .to_string();
+    // 模型偶尔把前缀又写一遍。
+    if prefix.ends_with(' ') || prefix.ends_with('|') {
+        // 前缀以分隔符结尾时，若补全以同样的前缀开头，去掉重复部分。
+        if let Some(rest) = out.strip_prefix(prefix.trim_end()) {
+            out = rest.trim_start().to_string();
+        }
+    }
+    out
+}
+
+
 /// 一次 ask() 的总输出。
 #[derive(Debug, Clone)]
 pub struct TriageOutcome {
@@ -466,6 +547,36 @@ impl TriageEngine {
 
     pub fn config(&self) -> &CopilotConfig {
         &self.cfg
+    }
+
+    /// 补全层：给一个命令前缀，返回「后面应该接什么」—— 只返回**补全部分**，
+    /// 不含用户已经输入的前缀。失败或模型无话可说时返回空串，调用方直接不显示即可。
+    pub async fn complete(
+        &self,
+        prefix: &str,
+        ctx: &CompletionContext,
+    ) -> AppResult<String> {
+        let prefix = prefix.trim_end();
+        if prefix.trim().is_empty() {
+            return Ok(String::new());
+        }
+        let req = ChatRequest {
+            system_prompt: COMPLETION_PROMPT.to_string(),
+            messages: vec![ChatMessage::User {
+                content: format!(
+                    "{}\nComplete this command:\n{}",
+                    ctx.as_prompt(),
+                    prefix
+                ),
+            }],
+            tools: Vec::new(),
+            model: self.cfg.model.clone(),
+            max_tokens: 64,
+            cancel: Some(self.cancel.clone()),
+        };
+        let noop: DeltaSink = Arc::new(|_| {});
+        let resp = self.client.chat(req, noop).await?;
+        Ok(clean_completion(&resp.text, prefix))
     }
 
     /// 跑一轮完整诊断。
@@ -1020,6 +1131,31 @@ mod tests {
         // 实时推送至少两帧：发布计划 + 推进一次。
         let frames = seen.lock().unwrap().len();
         assert!(frames >= 2, "计划变化要实时推给 UI，实际 {frames} 帧");
+    }
+
+    #[test]
+    fn completion_is_stripped_down_to_the_missing_part() {
+        // 代码块围栏 + 引号都要清掉。
+        assert_eq!(clean_completion("```sh\nps aux --sort=-%cpu\n```", ""), "ps aux --sort=-%cpu");
+        assert_eq!(clean_completion("\" | head -n 10\"", ""), "| head -n 10");
+        // 只取第一行。
+        assert_eq!(clean_completion("df -h\nexplanation here", ""), "df -h");
+        // 模型把前缀又写了一遍时去掉重复。
+        assert_eq!(clean_completion("ps aux | head -n 10", "ps aux | "), "head -n 10");
+        // 空输入 → 空结果。
+        assert_eq!(clean_completion("   ", ""), "");
+    }
+
+    #[test]
+    fn completion_context_renders_recent_commands_newest_first() {
+        let ctx = CompletionContext {
+            recent_commands: vec!["uptime".into(), "df -h".into(), "free -m".into()],
+            cwd: Some("/var/log".into()),
+        };
+        let rendered = ctx.as_prompt();
+        assert!(rendered.contains("cwd: /var/log"));
+        assert!(rendered.find("free -m").unwrap() < rendered.find("df -h").unwrap());
+        assert!(rendered.find("df -h").unwrap() < rendered.find("uptime").unwrap());
     }
 
     #[test]
