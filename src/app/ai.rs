@@ -373,6 +373,35 @@ pub(super) fn message_card(p: &ProposedCommand) -> AiMessage {
         disposition: disposition_tag(p.disposition).into(),
         blocked_reason: p.blocked_reason.clone().unwrap_or_default().into(),
         step_failed: false,
+        step_state: String::new().into(),
+    }
+}
+
+
+/// 计划清单的一行。id 稳定（plan-<index>），所以引擎推送新快照时是原地更新，
+/// 而不是越堆越长。
+fn message_plan_step(index: usize, step: &ai_copilot::triage::PlanStep) -> AiMessage {
+    AiMessage {
+        role: ROLE_PLAN_STEP,
+        text: step.text.clone().into(),
+        card_id: format!("plan-{index}").into(),
+        step_state: step.state.as_str().into(),
+        ..Default::default()
+    }
+}
+
+/// 把整份计划快照写进抽屉：已存在的步骤原地更新状态，新增的追加。
+fn sync_plan_rows(rows: &mut Vec<AiMessage>, plan: &[ai_copilot::triage::PlanStep]) {
+    for (index, step) in plan.iter().enumerate() {
+        let row = message_plan_step(index, step);
+        if let Some(existing) = rows
+            .iter_mut()
+            .find(|m| m.card_id == row.card_id)
+        {
+            *existing = row;
+        } else {
+            rows.push(row);
+        }
     }
 }
 
@@ -382,6 +411,7 @@ fn message_step(entry: &ai_copilot::triage::ToolLogEntry) -> AiMessage {
         role: ROLE_STEP,
         text: entry.summary.clone().into(),
         step_failed: entry.is_error,
+        step_state: String::new().into(),
         ..Default::default()
     }
 }
@@ -393,6 +423,8 @@ pub(super) const ROLE_CARD: i32 = 2;
 pub(super) const ROLE_ERROR: i32 = 3;
 /// Agent 模式下的步骤痕迹（一次工具调用一行）。
 pub(super) const ROLE_STEP: i32 = 4;
+/// Agent 模式的计划清单条目（复选框行）。
+pub(super) const ROLE_PLAN_STEP: i32 = 5;
 
 /// 抽屉里追加一条纯文本消息（摘要 / 错误提示）。
 pub(super) fn push_notice(
@@ -704,13 +736,22 @@ pub(super) fn spawn_ask(runtime: &tokio::runtime::Handle, params: AskParams) {
         let weak = weak.clone();
         let tab_id = tab_id.clone();
         move |delta| {
-            if let ChatDelta::Text(text) = delta {
-                with_messages(&ai, &weak, &tab_id, Some(generation), |v| {
-                    if let Some(row) = v.get_mut(stream_index) {
-                        row.text = format!("{}{}", row.text, text).into();
-                        row.role = ROLE_ASSISTANT;
-                    }
-                });
+            match delta {
+                ChatDelta::Text(text) => {
+                    with_messages(&ai, &weak, &tab_id, Some(generation), |v| {
+                        if let Some(row) = v.get_mut(stream_index) {
+                            row.text = format!("{}{}", row.text, text).into();
+                            row.role = ROLE_ASSISTANT;
+                        }
+                    });
+                }
+                // Agent 计划清单：整份快照替换，UI 看到的是实时进展。
+                ChatDelta::Plan(plan) => {
+                    with_messages(&ai, &weak, &tab_id, Some(generation), |v| {
+                        sync_plan_rows(v, &plan);
+                    });
+                }
+                _ => {}
             }
         }
     });
@@ -728,6 +769,8 @@ pub(super) fn spawn_ask(runtime: &tokio::runtime::Handle, params: AskParams) {
                     row.text = outcome.text.clone().into();
                     row.role = ROLE_ASSISTANT;
                 }
+                // 收尾时用最终快照再刷一次，保证没有残留的「进行中」。
+                sync_plan_rows(v, &outcome.plan);
                 // Agent 模式：把取证/执行/验证的每一步都留在抽屉里，
                 // 用户不必信任结论 —— 他能看到过程。
                 for entry in &outcome.tool_log {

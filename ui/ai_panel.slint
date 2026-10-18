@@ -17,6 +17,7 @@ export struct AiMessage {
     disposition: string,    // pending | executed | filled | rejected | blocked
     blocked-reason: string,
     step-failed: bool,       // role 4 的步骤是否失败
+    step-state: string,      // role 5 的计划步骤状态：pending | running | done | failed
 }
 
 export component AiPanel inherits Rectangle {
@@ -493,6 +494,31 @@ export component AiPanel inherits Rectangle {
                                     font-size: Theme.fs-sm;
                                 }
                             }
+                        }
+                    }
+                    // Agent 的计划清单：复选框 + 步骤文案（Copilot Agent 的 plan 视图）
+                    if msg.role == 5 : HorizontalLayout {
+                        alignment: start;
+                        spacing: 6px;
+                        Text {
+                            text: msg.step-state == "done" ? "\u{E834}"
+                                : msg.step-state == "failed" ? "\u{E837}"
+                                : msg.step-state == "running" ? "\u{E838}"
+                                : "\u{E835}";
+                            font-family: "Material Icons";
+                            font-size: 14px;
+                            color: msg.step-state == "done" ? Theme.success
+                                : msg.step-state == "failed" ? Theme.danger
+                                : msg.step-state == "running" ? Theme.accent
+                                : Theme.text-muted;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: msg.text;
+                            wrap: word-wrap;
+                            color: msg.step-state == "pending" ? Theme.text-muted : Theme.text-secondary;
+                            font-size: Theme.fs-sm;
+                            vertical-alignment: center;
                         }
                     }
                     // Agent 的步骤痕迹（工具调用），折叠成一行

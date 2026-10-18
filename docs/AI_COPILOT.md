@@ -55,6 +55,21 @@ GitHub Copilot 有三层能力：补全 → 对话/编辑 → 代理。在运维
 起手建议（都是先只读的排障问法）。设置里的 **Test connection** 会用当前填写的配置请求一次
 `/models` 做连通性自检，不写盘。
 
+### 计划清单（Agent）
+
+Agent 模式会先用 `set_plan` 工具把计划发布成一份**清单**（最多 8 条），抽屉里渲染成
+带复选框的步骤行，状态随执行推进：
+
+| 状态 | 图标 | 含义 |
+| --- | --- | --- |
+| `pending` | 空心框 | 还没轮到 |
+| `running` | 星标（强调色） | 正在执行 |
+| `done` | 勾选框（绿） | 对应的一次工具调用成功 |
+| `failed` | 破折框（红） | 对应的一次工具调用失败或被拦下 |
+
+推进规则是「第 n 次动作型工具调用对应第 n 步」——这是有意做的简化：让模型逐步回报进度
+既啰嗦又不可靠。清单只用于**展示进度**，真正的执行结果仍以命令卡片和步骤痕迹为准。
+
 ## 上下文是怎么抓的
 
 传统终端只是一串无状态的字符流，AI 要能诊断，前提是分清「哪一段是命令、哪一段是输出」。
@@ -182,6 +197,23 @@ Entry point: the **five-pointed star** on the right of the terminal status strip
 offers three starter prompts, all read-only first. **Test connection** in the
 settings block issues a single `/models` request with the typed values - it writes
 nothing to disk.
+
+### Plan checklist (Agent)
+
+In Agent mode the model first publishes a plan through the `set_plan` tool (up to 8
+steps). The drawer renders it as a checklist whose state advances as it works:
+
+| State | Icon | Meaning |
+| --- | --- | --- |
+| `pending` | empty box | not reached yet |
+| `running` | star (accent) | executing now |
+| `done` | checked box (green) | its tool call succeeded |
+| `failed` | dash box (red) | its tool call failed or was refused |
+
+Progress follows "the n-th action tool call completes step n" - a deliberate
+simplification, since asking the model to report progress per step is verbose and
+unreliable. The checklist shows progress only; the authoritative result is still the
+command cards and the step log.
 
 ## Context capture
 
