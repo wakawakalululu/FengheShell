@@ -106,8 +106,8 @@ FengheShell 自带 MCP Server（对外给别的客户端用）。AI Copilot 则�
 
 - 本地终端标签没有安装 hooks（`OSC 697` 是连远端 SSH 时装进去的），这类标签的命令块
   只能来自远端自身启用的 OSC 133，否则 AI 只看到你的提问文本。
-- 「停止」只能作废这一轮在 UI 上的输出（含结清等待中的审批），不会中断已经发出的 LLM
-  请求；请求结束后结果会被丢弃。
+- 「停止」会置位本轮的中断开关：引擎在下一个回合边界退出，客户端在下一个流式分块处
+  放弃请求，命令等待也会立刻结束。已经生成的那一小段文本会被丢弃（generation 机制）。
 - 串口 / Telnet 这类裸设备没有 shell，sentinel 无处附着，因此命令执行不适用，AI 只会
   给文本建议。
 
@@ -191,7 +191,8 @@ rejection, so the AI never wedges.
 - Local terminal tabs have no hook (`OSC 697` is installed into remote shells over
   SSH), so their context relies on the remote shell emitting OSC 133 — otherwise
   the AI only sees your question.
-- "Stop" discards this round and settles any pending approval; it does not abort the
-  LLM request already in flight. Its result is dropped when it arrives.
+- "Stop" flips the round's cancel flag: the engine exits at the next turn boundary, the
+  client gives up at the next streamed chunk, and any command wait ends immediately. The
+  text already generated is dropped (generation counter).
 - Raw-device sessions (serial / Telnet) have no shell to carry a sentinel, so command
   execution does not apply there; the AI answers in prose.

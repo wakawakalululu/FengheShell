@@ -10,6 +10,7 @@
 //!   没有任何后台静默执行路径 —— 所有副作用都在看得见的终端里发生。
 
 use std::rc::Rc;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -89,6 +90,8 @@ pub(crate) struct TabAi {
     exec: Option<ExecCapture>,
     /// 引擎正在等待的用户裁决：卡片 id → 回复通道。
     approval: Option<(String, oneshot::Sender<bool>)>,
+    /// 当前这一轮的中断开关；点「停止」时置位，LLM 请求与命令等待都会退出。
+    cancel: Option<Arc<AtomicBool>>,
     /// 抽屉内容的权威副本；Slint 模型只是它的镜像。
     messages: Vec<AiMessage>,
     busy: bool,
@@ -108,6 +111,7 @@ impl TabAi {
             saw_osc133: false,
             exec: None,
             approval: None,
+            cancel: None,
             messages: Vec::new(),
             busy: false,
             generation: 0,
@@ -221,8 +225,18 @@ impl TabAi {
         self.generation
     }
 
-    /// 「停止 / 清空」：作废当前轮次，回收等待中的审批。
+    /// 开一轮新的诊断，拿到它的中断开关。
+    pub(super) fn begin_round(&mut self) -> Arc<AtomicBool> {
+        let flag = Arc::new(AtomicBool::new(false));
+        self.cancel = Some(flag.clone());
+        flag
+    }
+
+    /// 「停止 / 清空」：作废当前轮次，回收等待中的审批，并中断在飞的 LLM 请求。
     pub(super) fn cancel_generation(&mut self) -> u64 {
+        if let Some(flag) = self.cancel.take() {
+            flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
         if let Some((_, tx)) = self.approval.take() {
             let _ = tx.send(false);
         }
@@ -458,6 +472,8 @@ pub(super) struct UiRuntime {
     tab_id: String,
     ai: AiTabHandle,
     weak: slint::Weak<AppWindow>,
+    /// 本轮中断开关：置位后命令等待立刻结束（用户点了「停止」）。
+    cancel: Arc<AtomicBool>,
     /// PTY 写通道。None = 这个标签没有可写入的终端（AI 只能聊天）。
     raw: Option<UnboundedSender<SessionCommand>>,
     /// 本次 ask() 的世代号；抽屉被清空 / 停止后其 UI 写入自动作废。
@@ -512,6 +528,16 @@ impl ToolRuntime for UiRuntime {
         let deadline = tokio::time::Instant::now() + EXEC_TIMEOUT;
         loop {
             tokio::time::sleep(Duration::from_millis(80)).await;
+            // 用户点了「停止」：不再等这条命令的结果。
+            if self.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                let mut guard = self.ai.lock().unwrap_or_else(|e| e.into_inner());
+                guard.clear_exec();
+                return Ok(CommandOutcome {
+                    exit_code: None,
+                    output: String::new(),
+                    timed_out: true,
+                });
+            }
             let finished = {
                 self.ai
                     .lock()
@@ -619,17 +645,22 @@ pub(super) fn spawn_ask(runtime: &tokio::runtime::Handle, params: AskParams) {
         .lock()
         .map(|g| g.generation())
         .unwrap_or_default();
+    let cancel = ai
+        .lock()
+        .map(|mut g| g.begin_round())
+        .unwrap_or_else(|_| Arc::new(AtomicBool::new(false)));
     let backend = Arc::new(UiRuntime {
         tab_id: tab_id.clone(),
         ai: ai.clone(),
         weak: weak.clone(),
         raw,
         generation,
+        cancel: cancel.clone(),
         session,
         jump,
         shell,
     });
-    let engine = match TriageEngine::new(cfg.clone(), backend) {
+    let engine = match TriageEngine::new(cfg.clone(), backend).map(|e| e.with_cancel(cancel)) {
         Ok(e) => e,
         Err(e) => {
             push_notice(

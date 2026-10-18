@@ -85,6 +85,19 @@ fn cancel_invalidates_waiting_approval() {
 }
 
 #[test]
+fn stop_sets_the_round_cancel_flag() {
+    let mut ai = TabAi::new();
+    let flag = ai.begin_round();
+    assert!(!flag.load(std::sync::atomic::Ordering::Relaxed));
+    ai.cancel_generation();
+    // 置位后，正在跑的 LLM 请求与命令等待都会尽快退出。
+    assert!(flag.load(std::sync::atomic::Ordering::Relaxed));
+    // 下一轮拿到的是全新的开关。
+    let next = ai.begin_round();
+    assert!(!next.load(std::sync::atomic::Ordering::Relaxed));
+}
+
+#[test]
 fn local_snapshot_maps_onto_the_ai_snapshot() {
     let mut local = SystemSnapshot::default();
     local.cpu_percent = 91.5;
