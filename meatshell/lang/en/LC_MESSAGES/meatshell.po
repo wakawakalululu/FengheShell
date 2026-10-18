@@ -726,3 +726,43 @@ msgstr "Save session"
 
 msgid "Create session"
 msgstr "Create session"
+
+msgid "AI Copilot"
+msgstr "AI Copilot"
+
+msgid "Diagnosing..."
+msgstr "Diagnosing..."
+
+msgid "Endpoint"
+msgstr "Endpoint"
+
+msgid "Model"
+msgstr "Model"
+
+msgid "Run"
+msgstr "Run"
+
+msgid "Fill terminal"
+msgstr "Fill terminal"
+
+msgid "Reject"
+msgstr "Reject"
+
+msgid "Stop"
+msgstr "Stop"
+
+msgid "AI"
+msgstr "AI"
+
+msgid "Protocol (openai-completions | deepseek-thinking | anthropic-messages | ollama)"
+msgstr "Protocol (openai-completions | deepseek-thinking | anthropic-messages | ollama)"
+
+msgid "API key (leave blank to keep the stored one)"
+msgstr "API key (leave blank to keep the stored one)"
+
+msgid "Redact secrets locally"
+msgstr "Redact secrets locally"
+
+msgid "Auto-run read-only commands"
+msgstr "Auto-run read-only commands"
+

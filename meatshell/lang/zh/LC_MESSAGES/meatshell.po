@@ -723,3 +723,43 @@ msgstr "保存会话"
 
 msgid "Create session"
 msgstr "创建会话"
+
+msgid "Endpoint"
+msgstr "端点"
+
+msgid "Model"
+msgstr "模型"
+
+msgid "Run"
+msgstr "执行"
+
+msgid "Fill terminal"
+msgstr "填入终端"
+
+msgid "Reject"
+msgstr "拒绝"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "AI"
+msgstr "AI"
+
+msgid "Diagnosing..."
+msgstr "诊断中..."
+
+msgid "AI Copilot"
+msgstr "AI Copilot"
+
+msgid "Protocol (openai-completions | deepseek-thinking | anthropic-messages | ollama)"
+msgstr "协议（openai-completions | deepseek-thinking | anthropic-messages | ollama）"
+
+msgid "API key (leave blank to keep the stored one)"
+msgstr "API Key（留空则保持已保存的密钥）"
+
+msgid "Redact secrets locally"
+msgstr "本地脱敏"
+
+msgid "Auto-run read-only commands"
+msgstr "只读命令免确认执行"
+

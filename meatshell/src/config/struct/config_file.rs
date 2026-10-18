@@ -315,6 +315,25 @@ pub struct ConfigFile {
     /// Allow MCP clients to upload local files and download remote files.
     #[serde(default = "default_mcp_preview_enabled")]
     pub mcp_allow_file_transfers: bool,
+    // --- AI Copilot drawer (MeatShell × rssh 缝合) -----------------------
+    /// LLM 协议：`openai-completions` / `deepseek-thinking` /
+    /// `anthropic-messages` / `ollama`。空串 = OpenAI 兼容接口。
+    #[serde(default)]
+    pub ai_protocol: String,
+    /// OpenAI 兼容端点；本地 Ollama 填 `http://localhost:11434/v1`。
+    #[serde(default)]
+    pub ai_endpoint: String,
+    #[serde(default)]
+    pub ai_model: String,
+    /// LLM API Key（落盘时与其它 Secret 一样加密）。
+    #[serde(default)]
+    pub ai_api_key: Secret,
+    /// 关闭本地脱敏。反向前缀：默认脱敏开启，只有用户显式勾选才关闭。
+    #[serde(default)]
+    pub ai_no_redaction: bool,
+    /// 只读命令（绿色 Gate）跳过确认直接执行 —— 仍发生在用户可见的终端里。
+    #[serde(default)]
+    pub ai_auto_run_readonly: bool,
     /// One-time default-layout migration marker (#new-user-defaults). 0 = config
     /// predates the migration. `migrate_defaults` bumps it to `DEFAULTS_REV` after
     /// pushing the new look (default wallpaper / welcome-as-sidebar / right-docked

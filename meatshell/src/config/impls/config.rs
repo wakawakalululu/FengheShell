@@ -456,6 +456,9 @@ impl ConfigStore {
         if let Some(plain) = Self::try_decrypt(key, cfg.webdav_password.as_str()) {
             cfg.webdav_password = Secret::new(plain);
         }
+        if let Some(plain) = Self::try_decrypt(key, cfg.ai_api_key.as_str()) {
+            cfg.ai_api_key = Secret::new(plain);
+        }
     }
 
     // ── Key file management ───────────────────────────────────────────────
@@ -1541,6 +1544,58 @@ impl ConfigStore {
         self.cache.webdav_accept_invalid_certs
     }
 
+    // --- AI Copilot drawer settings (MeatShell x rssh) ---
+
+    /// 缺省 OpenAI 兼容协议：LLM 交互客户端按此字符串选择 transport。
+    pub fn ai_protocol(&self) -> &str {
+        if self.cache.ai_protocol.trim().is_empty() {
+            "openai-completions"
+        } else {
+            self.cache.ai_protocol.trim()
+        }
+    }
+
+    pub fn ai_endpoint(&self) -> &str {
+        &self.cache.ai_endpoint
+    }
+
+    pub fn ai_model(&self) -> &str {
+        &self.cache.ai_model
+    }
+
+    /// LLM API Key；配置加载时已由 decrypt_local_secrets 还原为明文。
+    pub fn ai_api_key(&self) -> &str {
+        self.cache.ai_api_key.as_str()
+    }
+
+    pub fn ai_redaction_enabled(&self) -> bool {
+        !self.cache.ai_no_redaction
+    }
+
+    pub fn ai_auto_run_readonly(&self) -> bool {
+        self.cache.ai_auto_run_readonly
+    }
+
+    pub fn set_ai_settings(
+        &mut self,
+        protocol: String,
+        endpoint: String,
+        model: String,
+        api_key: String,
+        redaction_enabled: bool,
+        auto_run_readonly: bool,
+    ) {
+        self.cache.ai_protocol = protocol.trim().to_string();
+        self.cache.ai_endpoint = endpoint.trim().to_string();
+        self.cache.ai_model = model.trim().to_string();
+        // 空串表示「不修改已有 Key」，方便用户只改模型不动凭据。
+        if !api_key.is_empty() {
+            self.cache.ai_api_key = Secret::new(api_key);
+        }
+        self.cache.ai_no_redaction = !redaction_enabled;
+        self.cache.ai_auto_run_readonly = auto_run_readonly;
+    }
+
     pub fn set_webdav_settings(
         &mut self,
         enabled: bool,
@@ -1765,6 +1820,10 @@ impl ConfigStore {
             let enc = Self::encrypt(&self.key, disk.webdav_password.as_str())?;
             disk.webdav_password = Secret::new(enc);
         }
+        if !disk.ai_api_key.is_empty() && !disk.ai_api_key.is_local_ciphertext() {
+            let enc = Self::encrypt(&self.key, disk.ai_api_key.as_str())?;
+            disk.ai_api_key = Secret::new(enc);
+        }
         let raw = serde_json::to_string_pretty(&disk)?;
         // Write to a sibling temp file then rename — cheap atomicity.
         let tmp = self.path.with_extension("json.tmp");
@@ -1932,7 +1991,46 @@ mod tests {
     }
 
     #[test]
+    fn ai_settings_round_trip_and_the_api_key_stays_encrypted_on_disk() {
+        let mut store = temp_store();
+        let path = store.path.clone();
+        store.set_ai_settings(
+            "ollama".into(),
+            "http://localhost:11434/v1".into(),
+            "qwen2.5-coder:7b".into(),
+            "sk-secret".into(),
+            true,
+            true,
+        );
+        assert_eq!(store.ai_protocol(), "ollama");
+        assert_eq!(store.ai_endpoint(), "http://localhost:11434/v1");
+        assert_eq!(store.ai_model(), "qwen2.5-coder:7b");
+        assert_eq!(store.ai_api_key(), "sk-secret");
+        assert!(store.ai_redaction_enabled());
+        assert!(store.ai_auto_run_readonly());
+
+        store.save().expect("save must succeed");
+        let raw = std::fs::read_to_string(&path).expect("config file must exist");
+        assert!(raw.contains("enc:v1:"), "API key must be encrypted on disk");
+        assert!(!raw.contains("sk-secret"), "plaintext key must never be written");
+
+        // 空 Key = 保留已保存的密钥，方便只改模型不动凭据。
+        store.set_ai_settings(
+            "openai-completions".into(),
+            "https://api.openai.com/v1".into(),
+            "gpt-4o-mini".into(),
+            "".into(),
+            false,
+            false,
+        );
+        assert_eq!(store.ai_api_key(), "sk-secret");
+        assert!(!store.ai_redaction_enabled());
+        assert!(!store.ai_auto_run_readonly());
+    }
+
+    #[test]
     fn terminal_cursor_style_defaults_and_validates() {
+
         let mut store = temp_store();
         assert_eq!(store.terminal_cursor_style(), "block");
 
