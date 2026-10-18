@@ -30,9 +30,10 @@ SFTP），rssh 提供「AI 运维 Copilot 范式」（无感上下文捕获、AI
 ## 怎么用
 
 1. 终端状态条右侧点 `AI` 打开抽屉，或按 **Ctrl+Space** 开关当前标签的抽屉。
-2. 点标题栏齿轮配置 LLM：协议 / 端点 / 模型 / API Key，勾选「本地脱敏」与
-   「只读命令免确认执行」。设置写进 `sessions.json` 的 `ai_*` 字段，API Key
-   与其它会话密码一样用 ChaCha20-Poly1305 加密落盘。
+2. 配置 LLM：设置 → Interface → **AI Copilot** 页（或抽屉标题栏的齿轮）：协议 /
+   端点 / 模型 / API Key，以及「本地脱敏」与「只读命令免确认执行」两个开关。设置写进
+   `sessions.json` 的 `ai_*` 字段，API Key 与其它会话密码一样用 ChaCha20-Poly1305
+   加密落盘；输入框里的密钥是只写的，保存后即清空，已保存的密钥不会被读回界面。
 3. 直接提问，或什么都不问 —— CPU / 内存 / 磁盘越界时打开抽屉会自动起一轮排查。
 4. AI 给出的命令会以卡片形式出现在对话里，按风险等级决定你能怎么操作（见下）。
 
@@ -129,7 +130,8 @@ the AI side is injected as an independent crate.
 
 1. Click `AI` on the terminal status strip, or press **Ctrl+Space** to toggle the
    drawer of the active tab.
-2. In the drawer header, click the gear to configure the LLM: protocol /
+2. Configure the LLM under Settings -> Interface -> **AI Copilot** (or the gear in
+   the drawer header): protocol /
    endpoint / model / API key, plus "Redact secrets locally" and
    "Auto-run read-only commands". Settings are stored in `sessions.json`
    under the `ai_*` fields; the API key is encrypted with ChaCha20-Poly1305

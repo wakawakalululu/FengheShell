@@ -5014,6 +5014,14 @@ export component AppWindow inherits Window {
                     collapse-sidebar-default <=> root.collapse-sidebar-default;
                     collapse-sftp-default <=> root.collapse-sftp-default;
                     sync-upload-enabled <=> root.sync-upload-enabled;
+                    ai-protocol <=> root.ai-protocol;
+                    ai-endpoint <=> root.ai-endpoint;
+                    ai-model <=> root.ai-model;
+                    ai-redaction-enabled <=> root.ai-redaction-enabled;
+                    ai-auto-run-readonly <=> root.ai-auto-run-readonly;
+                    ai-apply-settings(p, e, m, k, r, a) => {
+                        root.ai-apply-settings(p, e, m, k, r, a);
+                    }
                     webdav-enabled <=> root.webdav-enabled;
                     webdav-url <=> root.webdav-url;
                     webdav-username <=> root.webdav-username;

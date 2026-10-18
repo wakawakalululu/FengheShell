@@ -415,6 +415,16 @@ export component InterfacePanel inherits Rectangle {
     callback check-for-updates();
     callback update-action();
     callback open-update-url();
+    // AI Copilot drawer settings (#ai-copilot). The API key is write-only: the
+    // stored value is never read back into the UI, so the field starts empty and
+    // a blank value means "keep the stored key".
+    in-out property <string> ai-protocol: "openai-completions";
+    in-out property <string> ai-endpoint: "";
+    in-out property <string> ai-model: "";
+    in-out property <string> ai-api-key-input: "";
+    in-out property <bool> ai-redaction-enabled: true;
+    in-out property <bool> ai-auto-run-readonly: false;
+    callback ai-apply-settings(string, string, string, string, bool, bool);
     in-out property <bool> mcp-enabled: true;
     in-out property <bool> mcp-use-saved-credentials: true;
     in-out property <bool> mcp-allow-commands: true;
@@ -551,6 +561,11 @@ export component InterfacePanel inherits Rectangle {
                     icon: "\u{F06C}"; label: root.lang-en ? "AI agents" : "AI 智能体";
                     active: root.ifd-page == "agents";
                     clicked => { root.ifd-page = "agents"; }
+                }
+                NavItem {
+                    icon: "\u{F06C}"; label: "AI Copilot";
+                    active: root.ifd-page == "ai-copilot";
+                    clicked => { root.ifd-page = "ai-copilot"; }
                 }
                 NavItem {
                     icon: "\u{E5CB}"; label: root.lang-en ? "Sidebars" : "侧栏";
@@ -1517,6 +1532,88 @@ export component InterfacePanel inherits Rectangle {
                             clicked => { root.remove-custom-agent(agent.id); }
                         }
                     }
+                }
+            }
+
+
+            // --- AI Copilot page ----------------------------------------
+            if root.ifd-page == "ai-copilot" : VerticalLayout {
+                padding-left: 20px;
+                padding-right: 20px;
+                padding-top: 14px;
+                spacing: 10px;
+                alignment: start;
+                SectionHeader { text: "AI COPILOT"; height: 24px; }
+                LabeledInput {
+                    label: root.lang-en ? "Protocol" : "协议";
+                    placeholder: "openai-completions | deepseek-thinking | anthropic-messages | ollama";
+                    value <=> root.ai-protocol;
+                }
+                LabeledInput {
+                    label: root.lang-en ? "Endpoint" : "端点";
+                    placeholder: "https://api.openai.com/v1";
+                    value <=> root.ai-endpoint;
+                }
+                LabeledInput {
+                    label: root.lang-en ? "Model" : "模型";
+                    placeholder: "gpt-4o-mini";
+                    value <=> root.ai-model;
+                }
+                // Deliberately not pre-filled: the stored key is never read back
+                // into the UI, so leaving this blank keeps the existing one.
+                LabeledInput {
+                    label: root.lang-en ? "API key" : "API Key";
+                    placeholder: root.lang-en
+                        ? "Leave blank to keep the stored key"
+                        : "留空则保持已保存的密钥";
+                    password: true;
+                    reveal-enabled: true;
+                    value <=> root.ai-api-key-input;
+                }
+                SettingRow {
+                    label: root.lang-en ? "Redact secrets locally" : "本地脱敏";
+                    desc: root.lang-en
+                        ? "Private IPs, hostnames, tokens and keys are replaced with placeholders before anything leaves this machine."
+                        : "内网 IP、域名、Token 与密钥在离开本机前会被替换成占位符。";
+                    Switch {
+                        on: root.ai-redaction-enabled;
+                        toggled(v) => { root.ai-redaction-enabled = v; }
+                    }
+                }
+                SettingRow {
+                    label: root.lang-en ? "Auto-run read-only commands" : "只读命令免确认执行";
+                    desc: root.lang-en
+                        ? "Green (read-only) suggestions run without a click - still inside the terminal you are watching."
+                        : "绿色（只读）建议无需点击即可执行 —— 仍然发生在你眼前的终端里。";
+                    show-divider: false;
+                    Switch {
+                        on: root.ai-auto-run-readonly;
+                        toggled(v) => { root.ai-auto-run-readonly = v; }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+                    GhostButton {
+                        text: root.lang-en ? "Save" : "保存";
+                        clicked => {
+                            root.ai-apply-settings(
+                                root.ai-protocol, root.ai-endpoint, root.ai-model,
+                                root.ai-api-key-input, root.ai-redaction-enabled,
+                                root.ai-auto-run-readonly);
+                            // Never keep a typed key in memory after saving.
+                            root.ai-api-key-input = "";
+                        }
+                    }
+                }
+                Rectangle { height: 6px; }
+                Text {
+                    text: root.lang-en
+                        ? "Stored in the regular config file; the API key is encrypted like every other saved secret. Open the drawer with the AI pill on the terminal status strip or Ctrl+Space."
+                        : "设置保存在常规配置文件中，API Key 与其它密码一样加密存储。终端状态条上的 AI 按钮或 Ctrl+Space 可打开抽屉。";
+                    color: Theme.text-muted;
+                    font-size: 11px * Theme.panel-font;
+                    wrap: word-wrap;
                 }
             }
 
