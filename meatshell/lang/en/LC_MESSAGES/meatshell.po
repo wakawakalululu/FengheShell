@@ -1,0 +1,728 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: meatshell\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Not connected"
+msgstr "Not connected"
+
+msgid "Local resources"
+msgstr "Local resources"
+
+msgid "Server resources"
+msgstr "Server resources"
+
+msgid "Download settings"
+msgstr "Download settings"
+
+msgid "Save downloads to:"
+msgstr "Save downloads to:"
+
+msgid "(ask every time)"
+msgstr "(ask every time)"
+
+msgid "Choose folder"
+msgstr "Choose folder"
+
+msgid "Choose save path"
+msgstr "Choose save path"
+
+msgid "Upload file"
+msgstr "Upload file"
+
+msgid "Upload folder"
+msgstr "Upload folder"
+
+msgid "Open folder"
+msgstr "Open folder"
+
+msgid "Transfers"
+msgstr "Transfers"
+
+msgid "Clear"
+msgstr "Clear"
+
+msgid "No transfers yet"
+msgstr "No transfers yet"
+
+msgid "About"
+msgstr "About"
+
+msgid "About meatshell"
+msgstr "About meatshell"
+
+msgid "A lightweight Rust + Slint SSH terminal client."
+msgstr "A lightweight Rust + Slint SSH terminal client."
+
+msgid "Transfers manager"
+msgstr "Transfers manager"
+
+msgid "Open source · MIT / Apache-2.0"
+msgstr "Open source · MIT / Apache-2.0"
+
+msgid "Open-source libraries used"
+msgstr "Open-source libraries used"
+
+msgid "Open source"
+msgstr "Open source"
+
+msgid "Edit session"
+msgstr "Edit session"
+
+msgid "New session"
+msgstr "New session"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "Name (optional)"
+msgstr "Name (optional)"
+
+msgid "e.g. production web-01"
+msgstr "e.g. production web-01"
+
+msgid "e.g. Production / Database"
+msgstr "e.g. Production / Database"
+
+msgid "Host / IP"
+msgstr "Host / IP"
+
+msgid "Port"
+msgstr "Port"
+
+msgid "Username"
+msgstr "Username"
+
+msgid "Prompted on connect if blank"
+msgstr "Prompted on connect if blank"
+
+msgid "Authentication"
+msgstr "Authentication"
+
+msgid "Password"
+msgstr "Password"
+
+msgid "Private key"
+msgstr "Private key"
+
+msgid "Keyboard-interactive"
+msgstr "Keyboard-interactive"
+
+msgid "Password / first answer"
+msgstr "Password / first answer"
+
+msgid "Server prompts are shown during login; MFA / OTP prompts will ask again."
+msgstr "Server prompts are shown during login; MFA / OTP prompts will ask again."
+
+msgid "Leave blank to keep the current password"
+msgstr "Leave blank to keep the current password"
+
+msgid "Key passphrase"
+msgstr "Key passphrase"
+
+msgid "Leave blank if the key isn't encrypted"
+msgstr "Leave blank if the key isn't encrypted"
+
+msgid "Leave blank to keep the current passphrase"
+msgstr "Leave blank to keep the current passphrase"
+
+msgid "Private key file"
+msgstr "Private key file"
+
+msgid "Paste private key"
+msgstr "Paste private key"
+
+msgid "Private key content is encrypted before saving."
+msgstr "Private key content is encrypted before saving."
+
+msgid "Browse…"
+msgstr "Browse…"
+
+msgid "Pick the private key itself (not the .pub public key)"
+msgstr "Pick the private key itself (not the .pub public key)"
+
+msgid "Login"
+msgstr "Login"
+
+msgid "Remember for this session"
+msgstr "Remember for this session"
+
+msgid "Please enter a host / IP address."
+msgstr "Please enter a host / IP address."
+
+msgid "Please enter a serial port."
+msgstr "Please enter a serial port."
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Create"
+msgstr "Create"
+
+msgid "Connect"
+msgstr "Connect"
+
+msgid "Test connection"
+msgstr "Test connection"
+
+msgid "Testing..."
+msgstr "Testing..."
+
+msgid "Connection OK"
+msgstr "Connection OK"
+
+msgid "Connection failed"
+msgstr "Connection failed"
+
+msgid "Connection timed out"
+msgstr "Connection timed out"
+
+msgid "SFTP not connected"
+msgstr "SFTP not connected"
+
+msgid "Upload"
+msgstr "Upload"
+
+msgid "Directory tree"
+msgstr "Directory tree"
+
+msgid "Size"
+msgstr "Size"
+
+msgid "Modified"
+msgstr "Modified"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "Owner"
+msgstr "Owner"
+
+msgid "Group"
+msgstr "Group"
+
+msgid "Loading..."
+msgstr "Loading..."
+
+msgid "Empty directory"
+msgstr "Empty directory"
+
+msgid "Download"
+msgstr "Download"
+
+msgid "Update available:"
+msgstr "Update available:"
+
+msgid "Open externally"
+msgstr "Open externally"
+
+msgid "Edit externally"
+msgstr "Edit externally"
+
+msgid "Rename"
+msgstr "Rename"
+
+msgid "Permissions"
+msgstr "Permissions"
+
+msgid "Copy path"
+msgstr "Copy path"
+
+msgid "Copy to session..."
+msgstr "Copy to session..."
+
+msgid "Refresh"
+msgstr "Refresh"
+
+msgid "New folder"
+msgstr "New folder"
+
+msgid "New file"
+msgstr "New file"
+
+msgid "New name"
+msgstr "New name"
+
+msgid "Octal mode, e.g. 755"
+msgstr "Octal mode, e.g. 755"
+
+msgid "Read-only"
+msgstr "Read-only"
+
+msgid "Modified"
+msgstr "Modified"
+
+msgid "View"
+msgstr "View"
+
+msgid "Edit"
+msgstr "Edit"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Duplicate"
+msgstr "Duplicate"
+
+msgid "New group"
+msgstr "New group"
+
+msgid "Edit group"
+msgstr "Edit group"
+
+msgid "Delete group"
+msgstr "Delete group"
+
+msgid "Group name"
+msgstr "Group name"
+
+msgid "Move to"
+msgstr "Move to"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Memory"
+msgstr "Memory"
+
+msgid "Swap"
+msgstr "Swap"
+
+msgid "Local"
+msgstr "Local"
+
+msgid "Path"
+msgstr "Path"
+
+msgid "Free/Total"
+msgstr "Free/Total"
+
+msgid "Copy"
+msgstr "Copy"
+
+msgid "Paste"
+msgstr "Paste"
+
+msgid "Clear buffer"
+msgstr "Clear buffer"
+
+msgid "Find"
+msgstr "Find"
+
+msgid "Processes"
+msgstr "Processes"
+
+msgid "User"
+msgstr "User"
+
+msgid "Command"
+msgstr "Command"
+
+msgid "No processes"
+msgstr "No processes"
+
+msgid "Quick"
+msgstr "Quick"
+
+msgid "Quick commands"
+msgstr "Quick commands"
+
+msgid "Type a command, Enter to send"
+msgstr "Type a command, Enter to send"
+
+msgid "All sessions"
+msgstr "All sessions"
+
+msgid "Send"
+msgstr "Send"
+
+msgid "No quick commands yet"
+msgstr "No quick commands yet"
+
+msgid "Group (optional)"
+msgstr "Group (optional)"
+
+msgid "Rename group"
+msgstr "Rename group"
+
+msgid "leave empty → default"
+msgstr "leave empty → default"
+
+msgid "Manage…"
+msgstr "Manage…"
+
+msgid "No history yet"
+msgstr "No history yet"
+
+msgid "e.g. tail log"
+msgstr "e.g. tail log"
+
+msgid "Search history"
+msgstr "Search history"
+
+msgid "Port forwarding"
+msgstr "Port forwarding"
+
+msgid "Advanced (encoding, proxy, tunnels)"
+msgstr "Advanced (encoding, proxy, tunnels)"
+
+msgid "Terminal character encoding"
+msgstr "Terminal character encoding"
+
+msgid "Use GBK for servers configured for GB2312 or GBK output."
+msgstr "Use GBK for servers configured for GB2312 or GBK output."
+
+msgid "Enable VT100 line drawing even in UTF-8 mode"
+msgstr "Enable VT100 line drawing even in UTF-8 mode"
+
+msgid "Show box-drawing output from servers that switch charsets (ESC(0, SO/SI) while staying in UTF-8, e.g. top or mc frames."
+msgstr "Show box-drawing output from servers that switch charsets (ESC(0, SO/SI) while staying in UTF-8, e.g. top or mc frames."
+
+msgid "Local (-L)"
+msgstr "Local (-L)"
+
+msgid "Remote (-R)"
+msgstr "Remote (-R)"
+
+msgid "Dynamic (-D)"
+msgstr "Dynamic (-D)"
+
+msgid "Listen port"
+msgstr "Listen port"
+
+msgid "Target host"
+msgstr "Target host"
+
+msgid "Target port"
+msgstr "Target port"
+
+msgid "Add"
+msgstr "Add"
+
+msgid "-L: local port → target reached from the server"
+msgstr "-L: local port → target reached from the server"
+
+msgid "-R: server port → target reached from here"
+msgstr "-R: server port → target reached from here"
+
+msgid "-D: local SOCKS5 proxy"
+msgstr "-D: local SOCKS5 proxy"
+
+msgid "meatshell — a lightweight Rust + Slint SSH client by 'lil meatball'"
+msgstr "meatshell — a lightweight Rust + Slint SSH client by 'lil meatball'"
+
+msgid "A lightweight and efficient Rust + Slint SSH client"
+msgstr "A lightweight and efficient Rust + Slint SSH client"
+
+msgid "Terminal"
+msgstr "Terminal"
+
+msgid "Open a terminal or AI agent"
+msgstr "Open a terminal or AI agent"
+
+msgid "Customize…"
+msgstr "Customize…"
+
+msgid "AI agents"
+msgstr "AI agents"
+
+msgid "Quick connect"
+msgstr "Quick connect"
+
+msgid "+ New session"
+msgstr "+ New session"
+
+msgid "No sessions yet"
+msgstr "No sessions yet"
+
+msgid "Use 'New session' (top-right) to add your first server"
+msgstr "Use 'New session' (top-right) to add your first server"
+
+msgid "Import ~/.ssh/config"
+msgstr "Import ~/.ssh/config"
+
+msgid "Proxy (optional)"
+msgstr "Proxy (optional)"
+
+msgid "No proxy — use $ALL_PROXY or connect directly"
+msgstr "No proxy — use $ALL_PROXY or connect directly"
+
+msgid "Leave blank to use $ALL_PROXY or connect directly"
+msgstr "Leave blank to use $ALL_PROXY or connect directly"
+
+msgid "Proxy address"
+msgstr "Proxy address"
+
+msgid "Format: host:port  (with auth: user:pass@host:port)"
+msgstr "Format: host:port  (with auth: user:pass@host:port)"
+
+msgid "Jump host (optional)"
+msgstr "Jump host (optional)"
+
+msgid "Tunnel this connection through another saved SSH session."
+msgstr "Tunnel this connection through another saved SSH session."
+
+msgid "Connection type"
+msgstr "Connection type"
+
+msgid "Serial"
+msgstr "Serial"
+
+msgid "Serial port"
+msgstr "Serial port"
+
+msgid "Baud rate"
+msgstr "Baud rate"
+
+msgid "Data bits / Stop bits / Parity"
+msgstr "Data bits / Stop bits / Parity"
+
+msgid "Flow control"
+msgstr "Flow control"
+
+msgid "None"
+msgstr "None"
+
+msgid "Note (optional)"
+msgstr "Note (optional)"
+
+msgid "Anything to remember about this host"
+msgstr "Anything to remember about this host"
+
+msgid "Hardware"
+msgstr "Hardware"
+
+msgid "Software"
+msgstr "Software"
+
+msgid "Confirm delete"
+msgstr "Confirm delete"
+
+msgid "Delete this item? This cannot be undone."
+msgstr "Delete this item? This cannot be undone."
+
+msgid "Please confirm"
+msgstr "Please confirm"
+
+msgid "Confirm"
+msgstr "Confirm"
+
+msgid "Interactive login compatibility mode"
+msgstr "Interactive login compatibility mode"
+
+msgid "SFTP privileges"
+msgstr "SFTP privileges"
+
+msgid "Login user (default)"
+msgstr "Login user (default)"
+
+msgid "Root, via sudo"
+msgstr "Root, via sudo"
+
+msgid "Custom SFTP server command"
+msgstr "Custom SFTP server command"
+
+msgid "SFTP server command"
+msgstr "SFTP server command"
+
+msgid "The SFTP panel runs sftp-server through sudo, so it can read and write files only root can. Needs passwordless sudo, or the saved login password when sudo asks for one."
+msgstr "The SFTP panel runs sftp-server through sudo, so it can read and write files only root can. Needs passwordless sudo, or the saved login password when sudo asks for one."
+
+msgid "Runs this command instead of the sftp subsystem; it must speak SFTP on stdin/stdout. Folder downloads (tar) still run as the login user."
+msgstr "Runs this command instead of the sftp subsystem; it must speak SFTP on stdin/stdout. Folder downloads (tar) still run as the login user."
+
+msgid "The SFTP panel works as the user you log in with."
+msgstr "The SFTP panel works as the user you log in with."
+
+msgid "For auto-login scripts or non-POSIX shells: skips shell hooks and remote monitoring while keeping SFTP available."
+msgstr "For auto-login scripts or non-POSIX shells: skips shell hooks and remote monitoring while keeping SFTP available."
+
+msgid "Split right"
+msgstr "Split right"
+
+msgid "Split down"
+msgstr "Split down"
+
+msgid "Close tab"
+msgstr "Close tab"
+
+msgid "Duplicate connection"
+msgstr "Duplicate connection"
+
+msgid "Copied"
+msgstr "Copied"
+
+msgid "Clear sort"
+msgstr "Clear sort"
+
+msgid "Terminate process"
+msgstr "Terminate process"
+
+msgid "PID copied"
+msgstr "PID copied"
+
+msgid "Terminate this process? It may lose unsaved data."
+msgstr "Terminate this process? It may lose unsaved data."
+
+msgid "This process belongs to root or another user. Enter your administrator (sudo) password to continue."
+msgstr "This process belongs to root or another user. Enter your administrator (sudo) password to continue."
+
+msgid "Administrator password"
+msgstr "Administrator password"
+
+msgid "Enter sudo password"
+msgstr "Enter sudo password"
+
+msgid "Terminating process..."
+msgstr "Terminating process..."
+
+msgid "Terminate"
+msgstr "Terminate"
+
+msgid "Search by name or host..."
+msgstr "Search by name or host..."
+
+msgid "No matching sessions"
+msgstr "No matching sessions"
+
+msgid "Clear search"
+msgstr "Clear search"
+
+msgid "新建窗口"
+msgstr "New Window"
+
+msgid "Session name"
+msgstr "Session name"
+
+msgid "Leave empty to restore the default name"
+msgstr "Leave empty to restore the default name"
+
+msgid "Login triggers"
+msgstr "Login triggers"
+
+msgid "Expected output"
+msgstr "Expected output"
+
+msgid "Response (leave blank to keep saved value)"
+msgstr "Response (leave blank to keep saved value)"
+
+msgid "Send Enter"
+msgstr "Send Enter"
+
+msgid "Repeat"
+msgstr "Repeat"
+
+msgid "Add trigger"
+msgstr "Add trigger"
+
+msgid "When expected text appears, send the response automatically. Responses are stored encrypted."
+msgstr "When expected text appears, send the response automatically. Responses are stored encrypted."
+
+msgid "DOMAIN\\user or user@domain"
+msgstr "DOMAIN\\user or user@domain"
+
+msgid "Domain (optional)"
+msgstr "Domain (optional)"
+
+
+
+
+
+msgid "Resolution"
+msgstr "Resolution"
+
+msgid "Full screen"
+msgstr "Full screen"
+
+msgid "Custom"
+msgstr "Custom"
+
+msgid "Width"
+msgstr "Width"
+
+msgid "Height"
+msgstr "Height"
+
+msgid "Remote desktop size. In full screen, Ctrl+Alt+Enter switches back to a window."
+msgstr "Remote desktop size. In full screen, Ctrl+Alt+Enter switches back to a window."
+
+msgid "Hide secret"
+msgstr "Hide secret"
+
+msgid "Show secret"
+msgstr "Show secret"
+
+msgid "Jump chain (optional)"
+msgstr "Jump chain (optional)"
+
+msgid "Local → hops below → target. First hop connects first."
+msgstr "Local → hops below → target. First hop connects first."
+
+msgid "+ Add jump host"
+msgstr "+ Add jump host"
+
+msgid "Target"
+msgstr "Target"
+
+msgid "Move to hop"
+msgstr "Move to hop"
+
+msgid "Hop"
+msgstr "Hop"
+
+msgid "Allow viewing saved credentials in this session"
+msgstr "Allow viewing saved credentials in this session"
+
+msgid "Allow MCP access to this session"
+msgstr "Allow MCP access to this session"
+
+msgid "Hidden from MCP clients: they cannot list, connect to, or route through this session. The CLI is unaffected."
+msgstr "Hidden from MCP clients: they cannot list, connect to, or route through this session. The CLI is unaffected."
+
+msgid "Unavailable"
+msgstr "Unavailable"
+
+msgid "Session log"
+msgstr "Session log"
+
+msgid "Follow global"
+msgstr "Follow global"
+
+msgid "Always record"
+msgstr "Always record"
+
+msgid "Never record"
+msgstr "Never record"
+
+msgid "Saves this session's terminal output as timestamped plain text. Keystrokes are not recorded. The folder is set in Settings → Session log."
+msgstr "Saves this session's terminal output as timestamped plain text. Keystrokes are not recorded. The folder is set in Settings → Session log."
+
+msgid "Discard unsaved changes?"
+msgstr "Discard unsaved changes?"
+
+msgid "This file has unsaved changes. Close without saving?"
+msgstr "This file has unsaved changes. Close without saving?"
+
+msgid "Discard and close"
+msgstr "Discard and close"
+
+msgid "Enter a new password"
+msgstr "Enter a new password"
+
+msgid "Enter a key passphrase"
+msgstr "Enter a key passphrase"
+
+msgid "Credentials start hidden. Click the eye to view. Save to remember this option."
+msgstr "Credentials start hidden. Click the eye to view. Save to remember this option."
+
+msgid "Save session"
+msgstr "Save session"
+
+msgid "Create session"
+msgstr "Create session"

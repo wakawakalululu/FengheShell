@@ -1,0 +1,896 @@
+use super::*;
+
+fn serial_session_detail(session: &Session) -> String {
+    if session.kind != SessionKind::Serial {
+        return String::new();
+    }
+    let parity = match session.parity.as_str() {
+        "odd" => "O",
+        "even" => "E",
+        _ => "N",
+    };
+    format!(
+        "{} · {} baud · {}{}{}",
+        session.serial_port, session.baud_rate, session.data_bits, parity, session.stop_bits
+    )
+}
+
+pub(super) fn wsl_profile_model(store: &ConfigStore) -> ModelRc<WslProfileInfo> {
+    let rows = store
+        .wsl_profiles()
+        .iter()
+        .map(|profile| WslProfileInfo {
+            id: profile.id.clone().into(),
+            name: profile.name.clone().into(),
+            distribution: profile.distribution.clone().into(),
+            directory: profile.directory.clone().into(),
+        })
+        .collect::<Vec<_>>();
+    ModelRc::from(Rc::new(VecModel::from(rows)))
+}
+
+/// Local shells for the tab bar's launch menu (#427), in Quick connect order.
+pub(super) fn launch_shell_model(store: &ConfigStore) -> ModelRc<LaunchItem> {
+    let rows = builtin_local_sessions(store.wsl_profiles())
+        .into_iter()
+        .map(|session| LaunchItem {
+            id: session.id.into(),
+            name: session.name.into(),
+        })
+        .collect::<Vec<_>>();
+    ModelRc::from(Rc::new(VecModel::from(rows)))
+}
+
+/// SFTP privilege mode from the editor (#438): only "sudo" and "custom" are
+/// stored, and "custom" without a command falls back to the default.
+fn normalized_sftp_mode(mode: &str, command: &str) -> String {
+    match mode {
+        "sudo" => "sudo".to_string(),
+        "custom" if !command.trim().is_empty() => "custom".to_string(),
+        _ => String::new(),
+    }
+}
+
+pub(super) fn parse_batch_import(text: &str) -> Vec<Session> {
+    let mut out = Vec::new();
+    for raw in text.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        // splitn(5) so the last field (name) may itself contain '|'.
+        let parts: Vec<&str> = line.splitn(5, '|').map(str::trim).collect();
+        let host = parts.first().copied().unwrap_or("");
+        // Skip blank hosts and a header row like "host|port|username|...".
+        if host.is_empty() || host.eq_ignore_ascii_case("host") {
+            continue;
+        }
+        let port = parts
+            .get(1)
+            .and_then(|p| p.parse::<u16>().ok())
+            .filter(|&p| p > 0)
+            .unwrap_or(22);
+        let user = parts
+            .get(2)
+            .copied()
+            .filter(|s| !s.is_empty())
+            .unwrap_or("root");
+        let password = parts.get(3).copied().unwrap_or("");
+        let name = parts
+            .get(4)
+            .copied()
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("{user}@{host}"));
+        let mut sess = Session {
+            name,
+            host: host.to_string(),
+            port,
+            user: user.to_string(),
+            auth: AuthMethod::Password,
+            ..Session::new_empty()
+        };
+        if !password.is_empty() {
+            sess.password = Secret::new(password.to_string());
+        }
+        out.push(sess);
+    }
+    out
+}
+
+/// Distinct named groups (explicit folders ∪ the groups sessions are filed under),
+/// de-duplicated and sorted alphabetically — feeds the new/edit dialog's group
+/// dropdown (#179). Ungrouped ("") is excluded; the dialog leaves the field blank
+/// for that case.
+pub(super) fn session_groups_model(store: &ConfigStore) -> ModelRc<SharedString> {
+    let named = named_display_groups(store.groups(), store.sessions());
+    ModelRc::from(Rc::new(VecModel::from(
+        named
+            .into_iter()
+            .map(SharedString::from)
+            .collect::<Vec<_>>(),
+    )))
+}
+
+/// Serial ports
+/// de-duplicated and sorted alphabetically — feeds the new/edit dialog's serial port
+/// dropdown.
+pub(super) fn session_serial_ports_model() -> ModelRc<SharedString> {
+    let mut named : Vec<String> = Vec::new();
+
+    let ports = serialport::available_ports()
+        .unwrap_or_else(|e| {
+            tracing::error!("No available serial ports found: {e}");
+            Vec::new()
+        });
+    for p in ports {
+        named.push(p.port_name);
+    }
+
+    ModelRc::from(Rc::new(VecModel::from(
+        named
+            .into_iter()
+            .map(SharedString::from)
+            .collect::<Vec<_>>(),
+    )))
+}
+
+/// Build the jump-host picker's parallel label/id lists for the session dialog
+/// (#211). Index 0 is the unselected placeholder (empty id); the rest are
+/// the saved SSH sessions except `exclude_id` (a session can't jump through
+/// itself). Each row resolves its own selection in these parallel lists.
+pub(super) fn jump_candidates(
+    store: &ConfigStore,
+    exclude_id: &str,
+) -> (ModelRc<SharedString>, ModelRc<SharedString>) {
+    let mut labels: Vec<SharedString> = vec![t("请选择跳板机", "Select a jump host").into()];
+    let mut ids: Vec<SharedString> = vec!["".into()];
+    for s in store.sessions() {
+        if s.kind != SessionKind::Ssh || s.id == exclude_id {
+            continue;
+        }
+        let label = if s.name.trim().is_empty() {
+            if s.user.trim().is_empty() {
+                s.host.clone()
+            } else {
+                format!("{}@{}", s.user, s.host)
+            }
+        } else {
+            format!("{} ({}@{}:{})", s.name, s.user, s.host, s.port)
+        };
+        labels.push(label.into());
+        ids.push(s.id.clone().into());
+    }
+    (
+        ModelRc::from(Rc::new(VecModel::from(labels))),
+        ModelRc::from(Rc::new(VecModel::from(ids))),
+    )
+}
+
+fn normalized_query(query: &str) -> String {
+    query.trim().to_lowercase()
+}
+
+fn session_matches_normalized_query(session: &Session, query: &str) -> bool {
+    query.is_empty()
+        || session.name.to_lowercase().contains(query)
+        || session.host.to_lowercase().contains(query)
+}
+
+#[cfg(test)]
+fn session_matches_query(session: &Session, query: &str) -> bool {
+    let query = normalized_query(query);
+    session_matches_normalized_query(session, &query)
+}
+
+fn build_session_rows(
+    sessions: &[Session],
+    explicit_groups: &[String],
+    collapsed_groups: Option<&[String]>,
+    builtin_sessions: &[Session],
+    query: &str,
+) -> Vec<SessionInfo> {
+    // Group sessions by their `group` (named groups alphabetically, ungrouped
+    // last), then by name within each group, and tag the first row of every
+    // group with a header so the welcome list can render a folder heading (#41).
+    let query = normalized_query(query);
+    let searching = !query.is_empty();
+    let matches = |session: &Session| session_matches_normalized_query(session, &query);
+    let group_is_collapsed = |group: &str| {
+        !searching
+            && collapsed_groups
+                .map(|groups| groups.iter().any(|collapsed| collapsed == group))
+                .unwrap_or(true)
+    };
+
+    // Ordered list of display groups:
+    //  - "default" only when there are ungrouped sessions (group == "")
+    //  - named groups: explicit folders (incl. empty ones) ∪ sessions' groups,
+    //    de-duplicated, alphabetical.
+    let has_default = sessions.iter().any(|session| {
+        (session.group.is_empty() || is_reserved_session_group(session.group.trim()))
+            && matches(session)
+    });
+    let mut named: Vec<String> = if searching {
+        sessions
+            .iter()
+            .filter(|session| {
+                !session.group.is_empty()
+                    && !is_reserved_session_group(session.group.trim())
+                    && matches(session)
+            })
+            .map(|session| session.group.clone())
+            .collect()
+    } else {
+        named_display_groups(explicit_groups, sessions)
+    };
+    named.sort_by_key(|g| g.to_lowercase());
+    named.dedup();
+
+    let mut display_groups: Vec<String> = Vec::new();
+    if has_default {
+        display_groups.push("default".to_string());
+    }
+    display_groups.extend(named);
+
+    // Placeholder row for an empty folder; id == "" marks it as a group header
+    // with no session (used by the UI to gate the "delete group" action).
+    let blank = |group: &str| SessionInfo {
+        id: "".into(),
+        name: "".into(),
+        host: "".into(),
+        serial_detail: "".into(),
+        port: 0,
+        user: "".into(),
+        auth: "".into(),
+        last_used: "".into(),
+        group: group.into(),
+        group_header: group.into(),
+        collapsed: group_is_collapsed(group),
+        builtin: false,
+    };
+
+    // Built-in rows keep their generated group ("system" shells, then the
+    // detected "agents"), each with its own header on its first row.
+    let mut rows: Vec<SessionInfo> = Vec::new();
+    let mut prev_group: Option<&str> = None;
+    for s in builtin_sessions.iter().filter(|session| matches(session)) {
+        let first_in_group = prev_group != Some(s.group.as_str());
+        prev_group = Some(s.group.as_str());
+        // Agent rows show the program they run (kept in `note`, see
+        // agents.rs) instead of the hosting shell.
+        let host = if s.note.is_empty() { &s.host } else { &s.note };
+        rows.push(SessionInfo {
+            id: s.id.clone().into(),
+            name: s.name.clone().into(),
+            host: host.into(),
+            serial_detail: "".into(),
+            port: 0,
+            user: s.user.clone().into(),
+            auth: s.kind.as_str().into(),
+            last_used: "".into(),
+            group: s.group.clone().into(),
+            group_header: if first_in_group {
+                s.group.clone().into()
+            } else {
+                "".into()
+            },
+            collapsed: group_is_collapsed(&s.group),
+            builtin: true,
+        });
+    }
+    for group in &display_groups {
+        let gs: Vec<&Session> = if group == "default" {
+            sessions
+                .iter()
+                .filter(|session| {
+                    (session.group.is_empty() || is_reserved_session_group(session.group.trim()))
+                        && matches(session)
+                })
+                .collect()
+        } else {
+            sessions
+                .iter()
+                .filter(|session| &session.group == group && matches(session))
+                .collect()
+        };
+        // No alphabetical sort: the stored Vec order is the user's manual
+        // order, maintained by drag-to-reorder (same convention as quick
+        // commands). New sessions land at the end of their group.
+        if gs.is_empty() && !searching {
+            rows.push(blank(group));
+        } else {
+            for (i, s) in gs.iter().enumerate() {
+                rows.push(SessionInfo {
+                    id: s.id.clone().into(),
+                    name: s.name.clone().into(),
+                    host: s.host.clone().into(),
+                    serial_detail: serial_session_detail(s).into(),
+                    port: s.port as i32,
+                    user: s.user.clone().into(),
+                    auth: s.auth.as_str().into(),
+                    last_used: s
+                        .last_used
+                        .clone()
+                        .unwrap_or_else(|| "never".to_string())
+                        .into(),
+                    group: group.clone().into(),
+                    group_header: if i == 0 {
+                        group.clone().into()
+                    } else {
+                        "".into()
+                    },
+                    collapsed: group_is_collapsed(group),
+                    builtin: false,
+                });
+            }
+        }
+    }
+    rows
+}
+
+pub(super) fn sync_sessions_to_model_with_filter(
+    store: &ConfigStore,
+    model: &VecModel<SessionInfo>,
+    query: &str,
+) {
+    let builtin_sessions = quick_connect_builtin_sessions(store);
+    model.set_vec(build_session_rows(
+        store.sessions(),
+        store.groups(),
+        store.collapsed_session_groups(),
+        &builtin_sessions,
+        query,
+    ));
+}
+
+/// Same rows as `sync_sessions_to_model_with_filter`, but when the row count
+/// is unchanged the rows are written with `set_row_data` instead of `set_vec`:
+/// the `for` loop keeps its elements (and a drag's pointer grab) alive. Used
+/// for per-hop updates during drag-to-reorder. Returns false when the row
+/// count changed and a full `set_vec` rebuild was required — that recreates
+/// the rows and drops the dragging row's pointer grab.
+pub(super) fn refresh_session_rows_in_place(
+    store: &ConfigStore,
+    model: &VecModel<SessionInfo>,
+    query: &str,
+) -> bool {
+    use slint::Model as _;
+    let builtin_sessions = quick_connect_builtin_sessions(store);
+    let rows = build_session_rows(
+        store.sessions(),
+        store.groups(),
+        store.collapsed_session_groups(),
+        &builtin_sessions,
+        query,
+    );
+    if rows.len() == model.row_count() {
+        for (i, row) in rows.into_iter().enumerate() {
+            model.set_row_data(i, row);
+        }
+        true
+    } else {
+        model.set_vec(rows);
+        false
+    }
+}
+
+pub(super) fn sync_sessions_to_model(store: &ConfigStore, model: &VecModel<SessionInfo>) {
+    sync_sessions_to_model_with_filter(store, model, "");
+}
+
+/// Generated rows at the top of Quick connect: the "system" shells, then the
+/// "agents" group of detected and custom agent CLIs (#427).
+fn quick_connect_builtin_sessions(store: &ConfigStore) -> Vec<Session> {
+    let mut sessions = builtin_local_sessions(store.wsl_profiles());
+    sessions.extend(super::agents::agent_sessions(store));
+    sessions
+}
+
+pub(super) fn builtin_local_sessions(wsl_profiles: &[crate::config::WslProfile]) -> Vec<Session> {
+    let mut out = Vec::new();
+    #[cfg(windows)]
+    {
+        out.push(builtin_local_session(
+            "system:powershell",
+            "PowerShell",
+            "powershell",
+        ));
+        out.push(builtin_local_session("system:cmd", "CMD", "cmd"));
+        if wsl_available() {
+            if wsl_profiles.is_empty() {
+                let mut session = builtin_local_session("system:wsl", "WSL", "wsl");
+                session.local_working_dir = "~".to_string();
+                out.push(session);
+            } else {
+                for profile in wsl_profiles {
+                    let mut session = builtin_local_session(
+                        &format!("system:wsl:{}", profile.id),
+                        profile.name.clone(),
+                        "wsl",
+                    );
+                    session.local_distribution = profile.distribution.clone();
+                    session.local_working_dir = if profile.directory.trim().is_empty() {
+                        "~".to_string()
+                    } else {
+                        profile.directory.clone()
+                    };
+                    out.push(session);
+                }
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        let name = std::path::Path::new(&shell)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Shell")
+            .to_string();
+        out.push(builtin_local_session("system:shell", name, "shell"));
+    }
+    out
+}
+
+/// A built-in session by id: the `system:` shells listed in Quick connect or
+/// an `agent:` entry from the tab bar's launch menu (#427).
+pub(super) fn resolve_builtin_session(store: &ConfigStore, id: &str) -> Option<Session> {
+    if id.starts_with(super::agents::AGENT_ID_PREFIX) {
+        return super::agents::agent_session(store, id);
+    }
+    builtin_local_sessions(store.wsl_profiles())
+        .into_iter()
+        .find(|s| s.id == id)
+}
+
+pub(super) fn builtin_local_session(id: &str, name: impl Into<String>, host: &str) -> Session {
+    let mut s = Session::new_empty();
+    s.id = id.to_string();
+    s.name = name.into();
+    s.host = host.to_string();
+    s.user = std::env::var("USERNAME")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_default();
+    s.group = "system".to_string();
+    s.kind = SessionKind::Local;
+    s
+}
+
+#[cfg(windows)]
+pub(super) fn wsl_available() -> bool {
+    use std::os::windows::process::CommandExt;
+
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        std::process::Command::new("wsl.exe")
+            .arg("--status")
+            .creation_flags(0x08000000)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Session callbacks (welcome page + dialog)
+// ---------------------------------------------------------------------------
+
+/// Build the effective session represented by the dialog. When editing, blank
+/// secret fields retain their saved values. Stored secrets only enter the UI
+/// after opting in and clicking the eye button (#10, #276).
+pub(super) fn session_from_draft(
+    draft: &SessionDraft,
+    existing: Option<&Session>,
+    forwards: Vec<crate::config::PortForward>,
+    triggers: Vec<crate::config::SessionTrigger>,
+) -> Session {
+    let password = if draft.password.is_empty() {
+        existing.map(|s| s.password.clone()).unwrap_or_default()
+    } else {
+        Secret::new(draft.password.to_string())
+    };
+    let private_key_inline = if draft.private_key_inline_mode {
+        if draft.private_key_inline.is_empty() {
+            existing
+                .map(|s| s.private_key_inline.clone())
+                .unwrap_or_default()
+        } else {
+            Secret::new(draft.private_key_inline.to_string())
+        }
+    } else {
+        Secret::default()
+    };
+    // Store key paths with forward slashes uniformly; inline mode clears the path.
+    let private_key_path = if draft.private_key_inline_mode {
+        String::new()
+    } else {
+        draft.private_key_path.to_string().replace('\\', "/")
+    };
+    let kind = SessionKind::from_str(&draft.kind.to_string());
+    // Auto-name: serial uses the device; otherwise user@host or just host (#110).
+    let auto_name = match kind {
+        SessionKind::Serial => format!("{} @{}", draft.serial_port, draft.baud_rate),
+        _ if draft.user.trim().is_empty() => draft.host.to_string(),
+        _ => format!("{}@{}", draft.user, draft.host),
+    };
+    // Telnet defaults to 23, RDP to 3389, SSH to 22; serial ignores the port.
+    let default_port = match kind {
+        SessionKind::Telnet => 23,
+        SessionKind::Rdp => 3389,
+        _ => 22,
+    };
+    let (rdp_fullscreen, rdp_width, rdp_height) = rdp_display_settings(
+        &draft.rdp_resolution.to_string(),
+        draft.rdp_width,
+        draft.rdp_height,
+    );
+    Session {
+        id: draft.id.to_string(),
+        name: if draft.name.is_empty() {
+            auto_name
+        } else {
+            draft.name.to_string()
+        },
+        host: draft.host.to_string(),
+        port: if draft.port <= 0 {
+            default_port
+        } else {
+            draft.port as u16
+        },
+        user: draft.user.to_string(),
+        auth: AuthMethod::from_str(&draft.auth.to_string()),
+        password,
+        private_key_path,
+        private_key_inline,
+        proxy: draft.proxy.to_string(),
+        last_used: None,
+        group: draft.group.to_string(),
+        kind,
+        local_distribution: String::new(),
+        local_working_dir: String::new(),
+        local_command: String::new(),
+        serial_port: draft.serial_port.to_string(),
+        baud_rate: if draft.baud_rate <= 0 {
+            115_200
+        } else {
+            draft.baud_rate as u32
+        },
+        data_bits: draft.data_bits as u8,
+        stop_bits: draft.stop_bits as u8,
+        parity: draft.parity.to_string(),
+        flow_control: draft.flow_control.to_string(),
+        encoding: draft.encoding.to_string(),
+        vt100_drawing: draft.vt100_drawing,
+        session_log: SessionLogMode::from_str(draft.session_log.as_str()),
+        forwards,
+        triggers,
+        disable_shell_integration: draft.disable_shell_integration,
+        sftp_mode: if kind == SessionKind::Ssh {
+            normalized_sftp_mode(&draft.sftp_mode, &draft.sftp_command)
+        } else {
+            String::new()
+        },
+        sftp_command: if kind == SessionKind::Ssh {
+            draft.sftp_command.trim().to_string()
+        } else {
+            String::new()
+        },
+        note: draft.note.to_string(),
+        jump_session_id: String::new(),
+        jump_session_ids: if kind == SessionKind::Ssh {
+            crate::config::draft_jump_ids(
+                draft.jumps.iter().map(|hop| (hop.id.to_string(), hop.placeholder)),
+            )
+        } else {
+            Vec::new()
+        },
+        allow_secret_reveal: draft.allow_secret_reveal,
+        mcp_access: draft.allow_mcp_access,
+        rdp_domain: draft.rdp_domain.to_string(),
+        rdp_fullscreen,
+        rdp_width,
+        rdp_height,
+    }
+}
+
+/// Resolution choice meaning "start full screen".
+pub(super) const RDP_RESOLUTION_FULLSCREEN: &str = "fullscreen";
+/// Resolution choice meaning "use the size typed into the dialog".
+pub(super) const RDP_RESOLUTION_CUSTOM: &str = "custom";
+/// Resolution preselected for a new session: a window that fits most screens,
+/// leaving the "full screen" choice one click away.
+pub(super) const RDP_RESOLUTION_DEFAULT: &str = "1280x720";
+
+/// Presets offered by the dialog's resolution dropdown. Keep in sync with the
+/// `ComboBox` model in `ui/session_dialog.slint`.
+pub(super) const RDP_RESOLUTION_PRESETS: [&str; 7] = [
+    "1280x720",
+    "1366x768",
+    "1440x900",
+    "1600x900",
+    "1920x1080",
+    "2560x1440",
+    "3840x2160",
+];
+
+/// Smallest / largest desktop side we accept from the dialog, in pixels.
+const RDP_MIN_SIDE: i32 = 200;
+const RDP_MAX_SIDE: i32 = 8192;
+const RDP_DEFAULT_WIDTH: u16 = 1280;
+const RDP_DEFAULT_HEIGHT: u16 = 720;
+
+/// Turn the dialog's resolution choice into the stored RDP display fields:
+/// `(fullscreen, width, height)`. Sizes are clamped into a range the server
+/// accepts; unusable input falls back to the defaults instead of failing the
+/// save.
+pub(super) fn rdp_display_settings(
+    resolution: &str,
+    custom_width: i32,
+    custom_height: i32,
+) -> (bool, u16, u16) {
+    // Positive values are clamped into the acceptable range so a typo like
+    // "99999" still gives a usable desktop; empty/non-numeric input (<= 0)
+    // keeps the default instead of failing the save.
+    let side = |value: i32, fallback: u16| {
+        if value <= 0 {
+            fallback
+        } else {
+            value.clamp(RDP_MIN_SIDE, RDP_MAX_SIDE) as u16
+        }
+    };
+    let custom = || {
+        (
+            side(custom_width, RDP_DEFAULT_WIDTH),
+            side(custom_height, RDP_DEFAULT_HEIGHT),
+        )
+    };
+    match resolution {
+        RDP_RESOLUTION_FULLSCREEN => {
+            // The size is unused while full screen, but a sensible one is kept
+            // so switching back to a windowed session needs no retyping.
+            let (width, height) = custom();
+            (true, width, height)
+        }
+        RDP_RESOLUTION_CUSTOM => {
+            let (width, height) = custom();
+            (false, width, height)
+        }
+        // A preset looks like "1920x1080".
+        preset => match preset.split_once(['x', 'X', '*']) {
+            Some((width, height)) => {
+                let (width, height) = (
+                    side(width.trim().parse().unwrap_or(0), RDP_DEFAULT_WIDTH),
+                    side(height.trim().parse().unwrap_or(0), RDP_DEFAULT_HEIGHT),
+                );
+                (false, width, height)
+            }
+            None => (true, RDP_DEFAULT_WIDTH, RDP_DEFAULT_HEIGHT),
+        },
+    }
+}
+
+/// The resolution choice to preselect when editing a saved session.
+pub(super) fn rdp_resolution_choice(fullscreen: bool, width: u16, height: u16) -> &'static str {
+    if fullscreen {
+        return RDP_RESOLUTION_FULLSCREEN;
+    }
+    let size = format!("{width}x{height}");
+    RDP_RESOLUTION_PRESETS
+        .into_iter()
+        .find(|preset| *preset == size)
+        .unwrap_or(RDP_RESOLUTION_CUSTOM)
+}
+
+#[cfg(test)]
+mod search_tests {
+    use super::*;
+
+    fn session(id: &str, name: &str, host: &str, group: &str) -> Session {
+        let mut value = Session::new_empty();
+        value.id = id.into();
+        value.name = name.into();
+        value.host = host.into();
+        value.group = group.into();
+        value
+    }
+
+    #[test]
+    fn session_search_matches_name_and_host_case_insensitively() {
+        let value = session("1", "Prod API", "DB.EXAMPLE.COM", "prod");
+        assert!(session_matches_query(&value, "  prod  "));
+        assert!(session_matches_query(&value, "example.com"));
+        assert!(!session_matches_query(&value, "staging"));
+    }
+
+    #[test]
+    fn filtered_rows_hide_empty_groups_and_expand_matches() {
+        let saved = vec![session("1", "Prod API", "10.0.0.8", "prod")];
+        let builtins = vec![session("local", "Local terminal", "localhost", "system")];
+        let groups = vec!["empty".to_string(), "prod".to_string()];
+        let collapsed = vec!["prod".to_string(), "system".to_string()];
+
+        let rows = build_session_rows(&saved, &groups, Some(&collapsed), &builtins, "prod");
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].name.as_str(), "Prod API");
+        assert_eq!(rows[0].group_header.as_str(), "prod");
+        assert!(!rows[0].collapsed);
+    }
+
+    #[test]
+    fn filtered_rows_include_matching_builtin_sessions() {
+        let builtins = vec![session("local", "Local terminal", "localhost", "system")];
+
+        let rows = build_session_rows(
+            &[],
+            &[],
+            Some(&["system".to_string()]),
+            &builtins,
+            "LOCALHOST",
+        );
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].name.as_str(), "Local terminal");
+        assert_eq!(rows[0].group_header.as_str(), "system");
+        assert!(rows[0].builtin);
+        assert!(!rows[0].collapsed);
+    }
+
+    #[test]
+    fn agents_get_their_own_builtin_group_after_system() {
+        let mut claude = session("agent:claude", "Claude Code", "powershell", "agents");
+        claude.note = "claude".into();
+        let codex = {
+            let mut s = session("agent:codex", "Codex", "powershell", "agents");
+            s.note = "codex".into();
+            s
+        };
+        let builtins = vec![
+            session("system:powershell", "PowerShell", "powershell", "system"),
+            claude,
+            codex,
+        ];
+        let collapsed = vec!["system".to_string()];
+
+        let rows = build_session_rows(&[], &[], Some(&collapsed), &builtins, "");
+
+        let headers: Vec<_> = rows.iter().map(|r| r.group_header.as_str()).collect();
+        assert_eq!(headers, ["system", "agents", ""]);
+        assert!(rows.iter().all(|r| r.builtin));
+        assert_eq!(rows[1].group.as_str(), "agents");
+        // Agent rows show the program, not the hosting shell.
+        assert_eq!(rows[1].host.as_str(), "claude");
+        assert_eq!(rows[2].host.as_str(), "codex");
+        assert_eq!(rows[0].host.as_str(), "powershell");
+        // Each built-in group collapses on its own.
+        assert!(rows[0].collapsed);
+        assert!(!rows[1].collapsed);
+    }
+
+    #[test]
+    fn sftp_mode_keeps_only_usable_choices() {
+        assert_eq!(normalized_sftp_mode("sudo", ""), "sudo");
+        assert_eq!(normalized_sftp_mode("custom", "  sudo -u web sftp-server "), "custom");
+        assert_eq!(normalized_sftp_mode("custom", "   "), "");
+        assert_eq!(normalized_sftp_mode("", "ignored"), "");
+        assert_eq!(normalized_sftp_mode("bogus", ""), "");
+    }
+
+    #[test]
+    fn filtered_rows_are_empty_when_nothing_matches() {
+        let saved = vec![session("1", "Prod API", "10.0.0.8", "prod")];
+        let builtins = vec![session("local", "Local terminal", "localhost", "system")];
+
+        let rows = build_session_rows(&saved, &[], None, &builtins, "staging");
+
+        assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn empty_query_restores_saved_groups_and_collapse_state() {
+        let saved = vec![session("1", "Prod API", "10.0.0.8", "prod")];
+        let groups = vec!["empty".to_string(), "prod".to_string()];
+        let collapsed = vec!["prod".to_string()];
+
+        let rows = build_session_rows(&saved, &groups, Some(&collapsed), &[], "");
+
+        assert!(rows
+            .iter()
+            .any(|row| row.group.as_str() == "empty" && row.id.is_empty()));
+        assert!(rows
+            .iter()
+            .any(|row| row.group.as_str() == "prod" && row.collapsed));
+    }
+}
+
+#[cfg(test)]
+mod serial_display_tests {
+    use super::*;
+
+    #[test]
+    fn serial_rows_show_device_and_framing_instead_of_ssh_defaults() {
+        for (device, baud, bits, parity, stops, expected) in [
+            ("/dev/ttyUSB0", 115200, 8, "none", 1, "/dev/ttyUSB0 · 115200 baud · 8N1"),
+            ("COM3", 9600, 7, "even", 2, "COM3 · 9600 baud · 7E2"),
+            ("/dev/ttyS0", 57600, 8, "odd", 1, "/dev/ttyS0 · 57600 baud · 8O1"),
+        ] {
+            let mut session = Session::new_empty();
+            session.kind = SessionKind::Serial;
+            session.serial_port = device.into();
+            session.baud_rate = baud;
+            session.data_bits = bits;
+            session.parity = parity.into();
+            session.stop_bits = stops;
+            let rows = build_session_rows(&[session], &[], None, &[], "");
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].serial_detail.as_str(), expected);
+        }
+    }
+
+    #[test]
+    fn network_rows_keep_their_address_fields() {
+        for kind in [SessionKind::Ssh, SessionKind::Telnet] {
+            let mut session = Session::new_empty();
+            session.kind = kind;
+            session.host = "example.com".into();
+            session.port = 2222;
+            session.user = "alice".into();
+            let rows = build_session_rows(&[session], &[], None, &[], "");
+            assert!(rows[0].serial_detail.is_empty());
+            assert_eq!(rows[0].host.as_str(), "example.com");
+            assert_eq!(rows[0].port, 2222);
+            assert_eq!(rows[0].user.as_str(), "alice");
+        }
+    }
+}
+
+#[cfg(test)]
+mod rdp_display_tests {
+    use super::*;
+
+    #[test]
+    fn resolution_choice_becomes_the_stored_fields() {
+        // A preset selects that desktop size in a window.
+        assert_eq!(
+            rdp_display_settings("1920x1080", 1280, 720),
+            (false, 1920, 1080)
+        );
+        // Full screen keeps a usable size for a later switch back to a window.
+        assert_eq!(
+            rdp_display_settings(RDP_RESOLUTION_FULLSCREEN, 1600, 900),
+            (true, 1600, 900)
+        );
+        // Custom uses what was typed, clamped to a range the server accepts.
+        assert_eq!(
+            rdp_display_settings(RDP_RESOLUTION_CUSTOM, 2560, 1440),
+            (false, 2560, 1440)
+        );
+        assert_eq!(
+            rdp_display_settings(RDP_RESOLUTION_CUSTOM, 0, 99_999),
+            (false, 1280, 8192)
+        );
+        // Anything unrecognised falls back to full screen at the default size.
+        assert_eq!(rdp_display_settings("nonsense", 0, 0), (true, 1280, 720));
+    }
+
+    #[test]
+    fn stored_fields_select_the_matching_dropdown_entry() {
+        assert_eq!(
+            rdp_resolution_choice(true, 1920, 1080),
+            RDP_RESOLUTION_FULLSCREEN
+        );
+        assert_eq!(rdp_resolution_choice(false, 1920, 1080), "1920x1080");
+        // A size that is not a preset needs the custom inputs.
+        assert_eq!(
+            rdp_resolution_choice(false, 1234, 567),
+            RDP_RESOLUTION_CUSTOM
+        );
+        // Every offered preset round-trips through the dialog and back.
+        for preset in RDP_RESOLUTION_PRESETS {
+            let (fullscreen, width, height) = rdp_display_settings(preset, 0, 0);
+            assert!(!fullscreen, "{preset} is a windowed size");
+            assert_eq!(rdp_resolution_choice(false, width, height), preset);
+        }
+    }
+}
