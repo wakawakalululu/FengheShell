@@ -1178,11 +1178,13 @@ where
             )
             .await?
         }
-        None => network_stage(
-            &format!("TCP connect to {addr}"),
-            tokio::net::TcpStream::connect((session.host.as_str(), session.port)),
-        )
-        .await?,
+        None => {
+            network_stage(
+                &format!("TCP connect to {addr}"),
+                tokio::net::TcpStream::connect((session.host.as_str(), session.port)),
+            )
+            .await?
+        }
     };
     let stage = format!("SSH handshake to {addr}");
     let _ = events.send(SessionEvent::Status(stage.clone()));
@@ -1227,7 +1229,10 @@ pub(crate) async fn authenticate_session(
     let authed = match session.auth {
         AuthMethod::Password => {
             let mut ok = network_stage(
-                &format!("password authentication at {}:{}", session.host, session.port),
+                &format!(
+                    "password authentication at {}:{}",
+                    session.host, session.port
+                ),
                 handle.authenticate_password(&user, password.as_str()),
             )
             .await?;
@@ -1275,7 +1280,10 @@ pub(crate) async fn authenticate_session(
             let key_with_hash = PrivateKeyWithHashAlg::new(Arc::new(keypair), hash)
                 .context("invalid private key / hash algorithm combination")?;
             network_stage(
-                &format!("public-key authentication at {}:{}", session.host, session.port),
+                &format!(
+                    "public-key authentication at {}:{}",
+                    session.host, session.port
+                ),
                 handle.authenticate_publickey(&user, key_with_hash),
             )
             .await?
@@ -1487,13 +1495,19 @@ pub async fn execute_command(
 ) -> Result<CommandExecution> {
     // A hop which accepts TCP but never completes SSH must not bypass the
     // caller's timeout. Bound the entire route, authentication and command.
-    match tokio::time::timeout(timeout, execute_command_inner(
-        session, jump, command, timeout, max_output_bytes,
-    )).await {
+    match tokio::time::timeout(
+        timeout,
+        execute_command_inner(session, jump, command, timeout, max_output_bytes),
+    )
+    .await
+    {
         Ok(result) => result,
         Err(_) => Ok(CommandExecution {
-            stdout: String::new(), stderr: String::new(), exit_code: None,
-            timed_out: true, truncated: false,
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: None,
+            timed_out: true,
+            truncated: false,
         }),
     }
 }

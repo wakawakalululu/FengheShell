@@ -265,7 +265,10 @@ fn install_msi(mut package: crate::update::windows::Download) {
                 drop(package);
                 failed(
                     core,
-                    t("无法开始安装，请重新下载", "Could not start installation; download again"),
+                    t(
+                        "无法开始安装，请重新下载",
+                        "Could not start installation; download again",
+                    ),
                     error,
                 );
             }
@@ -298,7 +301,10 @@ fn install_in_place(mut prepared: inplace::Prepared) {
             }
             Err(error) => failed(
                 core,
-                t("安装失败，请重新下载", "Installation failed; download again"),
+                t(
+                    "安装失败，请重新下载",
+                    "Installation failed; download again",
+                ),
                 error,
             ),
         });

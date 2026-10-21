@@ -194,7 +194,7 @@ pub(super) fn open_window(
     let tabs_model: Rc<VecModel<TabInfo>> = Rc::new(VecModel::default());
     tabs_model.push(TabInfo {
         id: "welcome".into(),
-        title_len: tab_title_len(&t("新标签页", "New tab")),
+        title_len: tab_title_len(t("新标签页", "New tab")),
         title: t("新标签页", "New tab").into(),
         kind: "welcome".into(),
         connected: false,
@@ -783,7 +783,7 @@ pub(super) fn open_window(
                 WinActivity::Hidden => return,
                 WinActivity::Background => {
                     bg_tick = bg_tick.wrapping_add(1);
-                    if bg_tick % 5 != 0 {
+                    if !bg_tick.is_multiple_of(5) {
                         return;
                     }
                 }

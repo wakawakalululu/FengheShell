@@ -100,7 +100,8 @@ impl ConfigStore {
                 error.column()
             )
         })?;
-        let fengheshell = value.get("fengheshell_export").is_some() || value.get("sessions").is_some();
+        let fengheshell =
+            value.get("fengheshell_export").is_some() || value.get("sessions").is_some();
         let mut sessions = if fengheshell {
             if let Some(version) = value.get("fengheshell_export") {
                 if version.as_u64() != Some(1) {

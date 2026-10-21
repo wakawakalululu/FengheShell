@@ -51,13 +51,13 @@ pub use sanitize::{validate_with, Blacklist, ShapeError, DEFAULT_MAX_OUTPUT_BYTE
 
 pub use blocks::{BlockParser, CommandBlock, ContextWindow, DEFAULT_CONTEXT_BYTES};
 pub use redact::{
-    builtin_rule_specs, validate_pattern, IndexedRedactor, RedactionMap, RedactRuleSpec,
+    builtin_rule_specs, validate_pattern, IndexedRedactor, RedactRuleSpec, RedactionMap,
 };
 pub use risk::{assess_command, gate_of, Gate, RiskAssessment, RiskLevel};
+pub use skills::{builtin_general, catalog_section, resolve_loadable, SkillRecord, GENERAL_ID};
 pub use triage::{
-    CopilotConfig, CommandOutcome, DiskUsage, Disposition, NetRate, ProcInfo, ProposedCommand,
+    CommandOutcome, CopilotConfig, DiskUsage, Disposition, NetRate, ProcInfo, ProposedCommand,
     SystemSnapshot, ToolRuntime, TriageContext, TriageEngine, TriageOutcome, Trigger,
     TOOL_READ_REMOTE_FILE,
 };
-pub use skills::{builtin_general, catalog_section, resolve_loadable, SkillRecord, GENERAL_ID};
 pub use web_search::{builtin_query_rules, WebSearchError, WebSearchProvider, WebSearchResponse};

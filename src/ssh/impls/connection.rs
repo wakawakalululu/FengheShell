@@ -19,14 +19,19 @@ use tokio::sync::watch;
 // opened by a spawned SFTP worker. Unlike the handshake guard this remains
 // armed after authentication, so cancellation interrupts stalled writes/rekeys.
 #[derive(Default)]
-struct TransportGroup { cancelled: bool, streams: Vec<Weak<CancelState>> }
+struct TransportGroup {
+    cancelled: bool,
+    streams: Vec<Weak<CancelState>>,
+}
 tokio::task_local! { static AUTOMATION_TRANSPORTS: Arc<Mutex<TransportGroup>>; }
 struct CancelGroupOnDrop(Arc<Mutex<TransportGroup>>);
 impl Drop for CancelGroupOnDrop {
     fn drop(&mut self) {
         let mut group = self.0.lock().unwrap_or_else(|e| e.into_inner());
         group.cancelled = true;
-        for state in group.streams.iter().filter_map(Weak::upgrade) { state.cancel(); }
+        for state in group.streams.iter().filter_map(Weak::upgrade) {
+            state.cancel();
+        }
     }
 }
 
@@ -38,7 +43,9 @@ pub(crate) async fn with_automation_cancellation<F: Future>(future: F) -> F::Out
 
 // Capture the task-local context before spawning; task locals do not inherit
 // automatically. A late-starting child still observes an already-cancelled group.
-pub(crate) fn inherit_automation_cancellation<F: Future>(future: F) -> impl Future<Output = F::Output> {
+pub(crate) fn inherit_automation_cancellation<F: Future>(
+    future: F,
+) -> impl Future<Output = F::Output> {
     let group = AUTOMATION_TRANSPORTS.try_with(Clone::clone).ok();
     async move {
         match group {
@@ -204,7 +211,9 @@ impl<S> CancelStream<S> {
         let state = Arc::new(CancelState::default());
         let _ = AUTOMATION_TRANSPORTS.try_with(|group| {
             let mut group = group.lock().unwrap_or_else(|e| e.into_inner());
-            if group.cancelled { state.cancel(); }
+            if group.cancelled {
+                state.cancel();
+            }
             group.streams.push(Arc::downgrade(&state));
         });
         (
@@ -383,7 +392,8 @@ mod automation_cancellation_tests {
             let (stream, mut handshake_guard) = CancelStream::new(transport);
             handshake_guard.0 = None;
             (stream, peer)
-        }).await;
+        })
+        .await;
         assert!(stream.read_u8().await.is_err());
     }
 
@@ -396,8 +406,13 @@ mod automation_cancellation_tests {
             let writer = tokio::spawn(async move { stream.write_all(&[1; 1024]).await });
             tokio::task::yield_now().await;
             (writer, peer)
-        }).await;
-        assert!(tokio::time::timeout(Duration::from_secs(1), writer).await.unwrap().unwrap().is_err());
+        })
+        .await;
+        assert!(tokio::time::timeout(Duration::from_secs(1), writer)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_err());
     }
 
     #[tokio::test]
@@ -409,7 +424,8 @@ mod automation_cancellation_tests {
                 handshake_guard.0 = None;
                 stream.write_all(b"no").await
             })
-        }).await;
+        })
+        .await;
         assert!(child.await.is_err());
     }
 }

@@ -175,8 +175,7 @@ pub(super) fn reorder_quick_command(
             .rev()
             .find(|&candidate| commands[candidate].group.trim() == group)
     } else {
-        (index + 1..commands.len())
-            .find(|&candidate| commands[candidate].group.trim() == group)
+        (index + 1..commands.len()).find(|&candidate| commands[candidate].group.trim() == group)
     };
     if let Some(target) = target {
         commands.swap(index, target);
@@ -207,7 +206,10 @@ mod reorder_tests {
         ];
         assert_eq!(reorder_quick_command(&mut commands, 2, true), Some(0));
         assert_eq!(
-            commands.iter().map(|item| item.name.as_str()).collect::<Vec<_>>(),
+            commands
+                .iter()
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["b", "x", "a"]
         );
         assert_eq!(reorder_quick_command(&mut commands, 0, true), None);
@@ -220,12 +222,16 @@ mod preview_tests {
 
     #[test]
     fn single_line_command_is_unchanged() {
-        assert_eq!(command_preview("docker exec -it goose-cli bash"), "docker exec -it goose-cli bash");
+        assert_eq!(
+            command_preview("docker exec -it goose-cli bash"),
+            "docker exec -it goose-cli bash"
+        );
     }
 
     #[test]
     fn multi_line_command_becomes_one_line() {
-        let cmd = "(for /f \"tokens=5\" %a in ('netstat -ano') do (\r\n    taskkill /F /PID %a\r\n))\r\n";
+        let cmd =
+            "(for /f \"tokens=5\" %a in ('netstat -ano') do (\r\n    taskkill /F /PID %a\r\n))\r\n";
         let preview = command_preview(cmd);
         assert!(!preview.contains('\n') && !preview.contains('\r'));
         assert_eq!(
@@ -236,7 +242,10 @@ mod preview_tests {
 
     #[test]
     fn blank_lines_and_tabs_collapse() {
-        assert_eq!(command_preview("\n\tls   -la\n\n\tpwd\n"), "ls -la \u{23CE} pwd");
+        assert_eq!(
+            command_preview("\n\tls   -la\n\n\tpwd\n"),
+            "ls -la \u{23CE} pwd"
+        );
     }
 
     #[test]
@@ -244,7 +253,8 @@ mod preview_tests {
         let pasted = "7 root       0 -20       0      0      0 I   0.0   0.0   0:00.00 kworker/R-netns\n      9 root       0 -20       0      0      0 I   0.0   0.0   0:00.00 kworker/0:0H-events_hig+\n     12 root       0 -20       0      0      0 I   0.0   0.0   0:00.00 kworker/R-mm_pe\n";
         let preview = command_preview(pasted);
         assert!(!preview.contains('\n'));
-        assert!(preview.starts_with("7 root 0 -20 0 0 0 I 0.0 0.0 0:00.00 kworker/R-netns \u{23CE} 9 root"));
+        assert!(preview
+            .starts_with("7 root 0 -20 0 0 0 I 0.0 0.0 0:00.00 kworker/R-netns \u{23CE} 9 root"));
     }
 
     #[test]

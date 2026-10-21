@@ -8,7 +8,7 @@ use super::*;
 use std::time::Duration;
 
 use ai_copilot::shell::ShellKind;
-use ai_copilot::triage::{CompletionContext, CopilotConfig, Trigger, TriageEngine};
+use ai_copilot::triage::{CompletionContext, CopilotConfig, TriageEngine, Trigger};
 
 use crate::resource::SystemSnapshot;
 
@@ -33,7 +33,13 @@ fn set_drawer_open(core: &AppCore, window: &Rc<AppWindow>, tab_id: &str, open: b
     let Some(reason) = hot_reason(&snapshot) else {
         return;
     };
-    ask_question(core, window, tab_id, String::new(), Trigger::Monitor(reason));
+    ask_question(
+        core,
+        window,
+        tab_id,
+        String::new(),
+        Trigger::Monitor(reason),
+    );
 }
 
 /// 最近一次的本地资源快照（与监控侧边栏同源）。
@@ -148,13 +154,7 @@ fn ai_config(store: &Rc<RefCell<ConfigStore>>, shell: ShellKind) -> CopilotConfi
 }
 
 /// 起一轮 Triage。UI 只负责打包上下文，之后全部异步进行。
-fn ask_question(
-    core: &AppCore,
-    win: &AppWindow,
-    tab_id: &str,
-    question: String,
-    trigger: Trigger,
-) {
+fn ask_question(core: &AppCore, win: &AppWindow, tab_id: &str, question: String, trigger: Trigger) {
     let Some(ai) = ai_handle(core, tab_id) else {
         return;
     };
@@ -164,7 +164,10 @@ fn ask_question(
             &win.as_weak(),
             tab_id,
             ROLE_ERROR,
-            crate::i18n::t("上一次诊断还没结束。", "The previous diagnosis is still running."),
+            crate::i18n::t(
+                "上一次诊断还没结束。",
+                "The previous diagnosis is still running.",
+            ),
         );
         return;
     }
@@ -173,12 +176,7 @@ fn ask_question(
         .borrow()
         .values()
         .find(|w| w.terminals_model.iter().any(|r| r.id.as_str() == tab_id))
-        .and_then(|w| {
-            w.handles
-                .borrow()
-                .get(tab_id)
-                .map(|h| h.commands.clone())
-        });
+        .and_then(|w| w.handles.borrow().get(tab_id).map(|h| h.commands.clone()));
     let store = core.store.clone();
     let (session, jump) = tab_session(core, &store, tab_id)
         .map(|(s, j)| (Some(s), j))
@@ -263,7 +261,11 @@ fn test_connection(
     let protocol = pick(protocol, cfg.0);
     let endpoint = pick(endpoint, cfg.1);
     let _model = pick(model, cfg.2);
-    let api_key = if api_key.is_empty() { cfg.3 } else { api_key.to_string() };
+    let api_key = if api_key.is_empty() {
+        cfg.3
+    } else {
+        api_key.to_string()
+    };
 
     win.set_ai_test_status("".into());
     win.set_ai_test_busy(true);
@@ -308,14 +310,30 @@ struct CompletionOnlyRuntime;
 
 #[async_trait::async_trait]
 impl ai_copilot::triage::ToolRuntime for CompletionOnlyRuntime {
-    async fn request_approval(&self, _p: &ai_copilot::triage::ProposedCommand) -> ai_copilot::AppResult<bool> {
+    async fn request_approval(
+        &self,
+        _p: &ai_copilot::triage::ProposedCommand,
+    ) -> ai_copilot::AppResult<bool> {
         Ok(false)
     }
-    async fn execute_approved(&self, _p: &ai_copilot::triage::ProposedCommand) -> ai_copilot::AppResult<ai_copilot::triage::CommandOutcome> {
-        Err(ai_copilot::AppError::other("completion_has_no_side_effects", serde_json::json!({})))
+    async fn execute_approved(
+        &self,
+        _p: &ai_copilot::triage::ProposedCommand,
+    ) -> ai_copilot::AppResult<ai_copilot::triage::CommandOutcome> {
+        Err(ai_copilot::AppError::other(
+            "completion_has_no_side_effects",
+            serde_json::json!({}),
+        ))
     }
-    async fn read_remote_file(&self, _path: &str, _max_bytes: usize) -> ai_copilot::AppResult<String> {
-        Err(ai_copilot::AppError::other("completion_has_no_side_effects", serde_json::json!({})))
+    async fn read_remote_file(
+        &self,
+        _path: &str,
+        _max_bytes: usize,
+    ) -> ai_copilot::AppResult<String> {
+        Err(ai_copilot::AppError::other(
+            "completion_has_no_side_effects",
+            serde_json::json!({}),
+        ))
     }
 }
 
@@ -343,7 +361,12 @@ fn starter_questions() -> Vec<SharedString> {
 }
 
 pub(super) fn wire_ai(ctx: &WinCtx) {
-    let WinCtx { core, store, window, .. } = ctx;
+    let WinCtx {
+        core,
+        store,
+        window,
+        ..
+    } = ctx;
 
     window.set_ai_starters(ModelRc::from(std::rc::Rc::new(VecModel::from(
         starter_questions(),
@@ -559,14 +582,7 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
                   endpoint: SharedString,
                   model: SharedString,
                   api_key: SharedString| {
-                test_connection(
-                    &core,
-                    &win_owned,
-                    &protocol,
-                    &endpoint,
-                    &model,
-                    &api_key,
-                );
+                test_connection(&core, &win_owned, &protocol, &endpoint, &model, &api_key);
             },
         );
     }
@@ -591,7 +607,8 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
                 }
             };
             let Some(text) = text else {
-                DialogOwner::of_weak(&weak).message()
+                DialogOwner::of_weak(&weak)
+                    .message()
                     .set_title(crate::i18n::t("AI 审计日志", "AI audit log"))
                     .set_description(crate::i18n::t(
                         "还没有审计记录：先在 AI 抽屉里跑一轮诊断。",
@@ -631,58 +648,58 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
     {
         let core = core.clone();
         let store = store.clone();
-        window.on_ai_apply_settings(move |
-            protocol: SharedString,
-            endpoint: SharedString,
-            model: SharedString,
-            api_key: SharedString,
-            redaction: bool,
-            auto_run: bool,
-        | {
-            // 换模型/端点后的旧补全不该继续命中，先记下原值用于比较。
-            let before = {
-                let s = store.borrow();
-                (
-                    s.ai_protocol().to_string(),
-                    s.ai_endpoint().to_string(),
-                    s.ai_model().to_string(),
-                )
-            };
-            {
-                let mut s = store.borrow_mut();
-                s.set_ai_settings(
-                    protocol.to_string(),
-                    endpoint.to_string(),
-                    model.to_string(),
-                    api_key.to_string(),
-                    redaction,
-                    auto_run,
-                );
-                let _ = s.save();
-            }
-            // 换了模型/端点/协议，缓存里的旧补全就不再适用。
-            let changed = {
-                let s = store.borrow();
-                s.ai_protocol() != before.0
-                    || s.ai_endpoint() != before.1
-                    || s.ai_model() != before.2
-            };
-            if changed {
-                clear_completion_cache();
-            }
-            let s = store.borrow();
-            // 所有窗口共享同一份 LLM 设置，改一处要立刻同步到每个实例。
-            core.registry.for_each(|weak| {
-                if let Some(win) = weak.upgrade() {
-                    win.set_ai_protocol(s.ai_protocol().into());
-                    win.set_ai_endpoint(s.ai_endpoint().into());
-                    win.set_ai_model(s.ai_model().into());
-                    win.set_ai_redaction_enabled(s.ai_redaction_enabled());
-                    win.set_ai_auto_run_readonly(s.ai_auto_run_readonly());
-                    win.set_ai_yolo_mode(s.ai_yolo_mode());
+        window.on_ai_apply_settings(
+            move |protocol: SharedString,
+                  endpoint: SharedString,
+                  model: SharedString,
+                  api_key: SharedString,
+                  redaction: bool,
+                  auto_run: bool| {
+                // 换模型/端点后的旧补全不该继续命中，先记下原值用于比较。
+                let before = {
+                    let s = store.borrow();
+                    (
+                        s.ai_protocol().to_string(),
+                        s.ai_endpoint().to_string(),
+                        s.ai_model().to_string(),
+                    )
+                };
+                {
+                    let mut s = store.borrow_mut();
+                    s.set_ai_settings(
+                        protocol.to_string(),
+                        endpoint.to_string(),
+                        model.to_string(),
+                        api_key.to_string(),
+                        redaction,
+                        auto_run,
+                    );
+                    let _ = s.save();
                 }
-            });
-        });
+                // 换了模型/端点/协议，缓存里的旧补全就不再适用。
+                let changed = {
+                    let s = store.borrow();
+                    s.ai_protocol() != before.0
+                        || s.ai_endpoint() != before.1
+                        || s.ai_model() != before.2
+                };
+                if changed {
+                    clear_completion_cache();
+                }
+                let s = store.borrow();
+                // 所有窗口共享同一份 LLM 设置，改一处要立刻同步到每个实例。
+                core.registry.for_each(|weak| {
+                    if let Some(win) = weak.upgrade() {
+                        win.set_ai_protocol(s.ai_protocol().into());
+                        win.set_ai_endpoint(s.ai_endpoint().into());
+                        win.set_ai_model(s.ai_model().into());
+                        win.set_ai_redaction_enabled(s.ai_redaction_enabled());
+                        win.set_ai_auto_run_readonly(s.ai_auto_run_readonly());
+                        win.set_ai_yolo_mode(s.ai_yolo_mode());
+                    }
+                });
+            },
+        );
     }
 }
 
@@ -691,10 +708,15 @@ fn ai_drawer_open(core: &AppCore, tab_id: &str) -> bool {
     window_for_tab(core, tab_id)
         .and_then(|win| {
             let model = win.get_terminals();
-            let Some(rows) = model.as_any().downcast_ref::<slint::VecModel<TerminalState>>() else {
+            let Some(rows) = model
+                .as_any()
+                .downcast_ref::<slint::VecModel<TerminalState>>()
+            else {
                 return None;
             };
-            rows.iter().find(|r| r.id.as_str() == tab_id).map(|r| r.ai_open)
+            rows.iter()
+                .find(|r| r.id.as_str() == tab_id)
+                .map(|r| r.ai_open)
         })
         .unwrap_or(false)
 }
@@ -704,10 +726,6 @@ fn window_for_tab(core: &AppCore, tab_id: &str) -> Option<Rc<AppWindow>> {
     core.window_states
         .borrow()
         .values()
-        .find(|w| {
-            w.terminals_model
-                .iter()
-                .any(|r| r.id.as_str() == tab_id)
-        })
+        .find(|w| w.terminals_model.iter().any(|r| r.id.as_str() == tab_id))
         .map(|w| w.main_win.clone())
 }

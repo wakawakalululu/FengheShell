@@ -139,10 +139,7 @@ pub(super) fn wire_tab_callbacks(
             }
             // Editor tab with unsaved edits (#494): ask first; "Discard and
             // close" clears the flag and comes back through here.
-            if weak
-                .upgrade()
-                .is_some_and(|w| close_needs_confirm(&w, &id))
-            {
+            if weak.upgrade().is_some_and(|w| close_needs_confirm(&w, &id)) {
                 return;
             }
 

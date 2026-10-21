@@ -81,7 +81,7 @@ pub(super) fn apply_saved_appearance(ctx: &WinCtx) {
         // Restoring a saved wallpaper must not override the user's persisted
         // light/dark preference. Built-in wallpapers only suggest their paired
         // theme when the user actively selects them (#theme-persistence).
-        apply_wallpaper(&window, &store.borrow(), &bufs, &id, false);
+        apply_wallpaper(window, &store.borrow(), bufs, &id, false);
     }
     // Editable inputs (e.g. the SFTP path bar) need a CJK-capable font: the
     // embedded mono font has no Chinese glyphs and native TextInput doesn't
@@ -106,7 +106,7 @@ pub(super) fn apply_saved_appearance(ctx: &WinCtx) {
         &all_quick_group_names(&store.borrow()),
     ));
     window.set_command_history(history_model(&store.borrow()));
-    set_history_view(&window, &store.borrow(), ""); // #101, #419
+    set_history_view(window, &store.borrow(), ""); // #101, #419
 }
 
 /// Interface toggles: SFTP follows cd, command bar, download prompt, paste and zen settings.

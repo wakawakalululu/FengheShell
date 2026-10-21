@@ -24,16 +24,103 @@ use crate::sanitize::{self, Blacklist, ShapeError};
 /// `-i inplace`）与任何写重定向（`>` / `>>`）都由 shape validator 先行
 /// Blocked，能走到分级这一步的只剩打印到 stdout 的用法。
 pub const READONLY_HEADS: &[&str] = &[
-    "arch", "awk", "basename", "cal", "cat", "cksum", "cmp", "column", "comm", "cut", "date", "df", "diff",
-    "dig", "dir", "dirname", "dmesg", "du", "egrep", "env", "expand", "factor", "fgrep", "file", "find", "free",
-    "getconf", "getent", "grep", "groups", "head", "host", "hostname", "id", "iostat", "ip", "jq", "journalctl",
-    "kill", "last", "lastlog", "ldd", "locale", "logname", "ls", "lsblk", "lscpu", "lsof", "md5sum",
-    "rg", "sed",
-    "mount", "mpstat", "netstat", "nproc", "nslookup", "od", "paste", "pgrep", "pidof", "ping",
-    "printf", "ps", "pwd", "readlink", "realpath", "route", "sar", "seq", "sha1sum", "sha256sum",
-    "sort", "ss", "stat", "sw_vers", "sysctl", "tac", "tail", "tee", "test", "tr", "traceroute",
-    "true", "truncate", "tty", "ulimit", "uname", "uniq", "uptime", "users", "vmstat", "w", "wc",
-    "who", "whoami", "xxd", "yes",
+    "arch",
+    "awk",
+    "basename",
+    "cal",
+    "cat",
+    "cksum",
+    "cmp",
+    "column",
+    "comm",
+    "cut",
+    "date",
+    "df",
+    "diff",
+    "dig",
+    "dir",
+    "dirname",
+    "dmesg",
+    "du",
+    "egrep",
+    "env",
+    "expand",
+    "factor",
+    "fgrep",
+    "file",
+    "find",
+    "free",
+    "getconf",
+    "getent",
+    "grep",
+    "groups",
+    "head",
+    "host",
+    "hostname",
+    "id",
+    "iostat",
+    "ip",
+    "jq",
+    "journalctl",
+    "kill",
+    "last",
+    "lastlog",
+    "ldd",
+    "locale",
+    "logname",
+    "ls",
+    "lsblk",
+    "lscpu",
+    "lsof",
+    "md5sum",
+    "rg",
+    "sed",
+    "mount",
+    "mpstat",
+    "netstat",
+    "nproc",
+    "nslookup",
+    "od",
+    "paste",
+    "pgrep",
+    "pidof",
+    "ping",
+    "printf",
+    "ps",
+    "pwd",
+    "readlink",
+    "realpath",
+    "route",
+    "sar",
+    "seq",
+    "sha1sum",
+    "sha256sum",
+    "sort",
+    "ss",
+    "stat",
+    "sw_vers",
+    "sysctl",
+    "tac",
+    "tail",
+    "tee",
+    "test",
+    "tr",
+    "traceroute",
+    "true",
+    "truncate",
+    "tty",
+    "ulimit",
+    "uname",
+    "uniq",
+    "uptime",
+    "users",
+    "vmstat",
+    "w",
+    "wc",
+    "who",
+    "whoami",
+    "xxd",
+    "yes",
 ];
 
 /// 单 token 高危命令（红色，只填入不执行）。
@@ -274,9 +361,7 @@ pub fn assess_command(cmd: &str) -> RiskAssessment {
                         .iter()
                         .any(|c| DESTRUCTIVE_PREFIX2.contains(&c.as_str()))
                         || DESTRUCTIVE_HEADS.contains(&head.as_str());
-                    let readonly = cands
-                        .iter()
-                        .any(|c| READONLY_PREFIX2.contains(&c.as_str()))
+                    let readonly = cands.iter().any(|c| READONLY_PREFIX2.contains(&c.as_str()))
                         || READONLY_HEADS.contains(&head.as_str());
                     if destructive {
                         RiskLevel::Destructive
@@ -287,7 +372,10 @@ pub fn assess_command(cmd: &str) -> RiskAssessment {
                     }
                 }
             };
-            RiskAssessment { level, blocked: None }
+            RiskAssessment {
+                level,
+                blocked: None,
+            }
         }
     }
 }
@@ -371,7 +459,8 @@ mod tests {
     fn destructive_commands_are_red_or_blocked() {
         // rm 直中 shape validator → Blocked；systemctl stop / chmod / git reset
         // 通过校验但人类应当三思 → Destructive（只填入，不执行）
-        for cmd in ["rm -rf /tmp/x"] {
+        {
+            let cmd = "rm -rf /tmp/x";
             assert_eq!(gate_of(&assess_command(cmd)), Gate::Blocked, "{cmd}");
         }
         for cmd in [

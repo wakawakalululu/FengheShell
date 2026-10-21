@@ -13,7 +13,10 @@ pub(super) fn take_closed_event(events: &mut Vec<SessionEvent>) -> Option<Sessio
     Some(closed)
 }
 
-pub(super) fn resolve_jump(store: &Rc<RefCell<ConfigStore>>, session: &Session) -> Result<Vec<Session>> {
+pub(super) fn resolve_jump(
+    store: &Rc<RefCell<ConfigStore>>,
+    session: &Session,
+) -> Result<Vec<Session>> {
     store.borrow().resolve_jump_chain(session)
 }
 
@@ -36,10 +39,16 @@ pub(super) fn start_session_in_tab(tab_id: &str, session: Session, ctx: &Connect
         Err(error) => {
             if let (Some(win), Some(editor)) = (ctx.weak.upgrade(), ctx.editor.upgrade()) {
                 apply_session_event_to_window(
-                    &win, &editor, ctx.window_id, tab_id,
+                    &win,
+                    &editor,
+                    ctx.window_id,
+                    tab_id,
                     SessionEvent::Closed(error.to_string()),
-                    &ctx.bufs, &ctx.render_gates, &ctx.tab_statuses,
-                    &ctx.local_snap, &ctx.local_net_hist,
+                    &ctx.bufs,
+                    &ctx.render_gates,
+                    &ctx.tab_statuses,
+                    &ctx.local_snap,
+                    &ctx.local_net_hist,
                 );
             }
             return;
@@ -409,7 +418,7 @@ pub(super) fn start_session_in_tab(tab_id: &str, session: Session, ctx: &Connect
                         Err(_) => break,
                     }
                 }
-                let ui_batch: Vec<SessionEvent> = drained.drain(..).collect();
+                let ui_batch: Vec<SessionEvent> = std::mem::take(&mut drained);
                 if ui_batch.is_empty() {
                     continue;
                 }

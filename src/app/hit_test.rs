@@ -128,7 +128,7 @@ pub(super) fn panels_hidden(win: &AppWindow) -> bool {
 
 pub(super) fn app_content_area(win: &AppWindow) -> LogicalRect {
     let size = win.window().size();
-    let scale = win.window().scale_factor().max(0.01) as f32;
+    let scale = win.window().scale_factor().max(0.01);
     let mut area = LogicalRect {
         x: 0.0,
         // Terminal fullscreen drops the title bar / macOS inset (#495).

@@ -527,7 +527,7 @@ pub(super) fn wire_pane_sftp_and_font_zoom(
                     return;
                 }
                 use slint::Model as _;
-                let Some(row) = terminals_model.iter().find(|r| r.id.to_string() == tab_id) else {
+                let Some(row) = terminals_model.iter().find(|r| r.id == tab_id) else {
                     return;
                 };
                 if direction == 0 {

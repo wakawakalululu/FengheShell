@@ -92,7 +92,8 @@ pub(super) fn highlight(text: &str, path: &str) -> String {
 pub(super) fn refresh(window: &EditorWindow, text: &str) {
     let path = window.get_editor_path();
     window.set_editor_language(language(path.as_str()).into());
-    window.set_editor_syntax_spans(themed_spans(text, path.as_str(), window.get_dark_mode()).into());
+    window
+        .set_editor_syntax_spans(themed_spans(text, path.as_str(), window.get_dark_mode()).into());
     window.set_editor_syntax_source(text.into());
 }
 
@@ -138,7 +139,10 @@ mod tests {
 
     #[test]
     fn shell_files_highlight_keywords_strings_comments_and_numbers() {
-        let result = highlight("#!/bin/sh\nif [ \"$1\" = \"ok\" ]; then\n  echo 42\nfi\n", "deploy.sh");
+        let result = highlight(
+            "#!/bin/sh\nif [ \"$1\" = \"ok\" ]; then\n  echo 42\nfi\n",
+            "deploy.sh",
+        );
         assert!(result.contains("ff6a9955"));
         assert!(result.contains("ffce9178"));
         assert!(result.contains("ffc586c0"));
@@ -156,7 +160,10 @@ mod tests {
             let start: usize = fields.next().unwrap().parse().unwrap();
             let end: usize = fields.next().unwrap().parse().unwrap();
             let value = &text[start..end];
-            assert!(!value.contains('\n'), "span crossed a line boundary: {value:?}");
+            assert!(
+                !value.contains('\n'),
+                "span crossed a line boundary: {value:?}"
+            );
         }
     }
 }

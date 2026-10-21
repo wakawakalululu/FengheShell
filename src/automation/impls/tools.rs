@@ -226,7 +226,7 @@ fn list_sessions(arguments: &Value, frontend: Frontend) -> Result<Value> {
         .sessions()
         .iter()
         .filter(|session| exposed_to(session, frontend))
-        .filter(|session| group.map_or(true, |group| session.group == group))
+        .filter(|session| group.is_none_or(|group| session.group == group))
         .map(safe_session)
         .collect();
     Ok(json!({ "sessions": sessions }))
@@ -380,7 +380,7 @@ mod tests {
         assert!(exposed_to(&shown, mcp));
         assert!(exposed_to(&hidden, Frontend::Cli));
 
-        assert!(ensure_hops_exposed(&[shown.clone()], mcp).is_ok());
+        assert!(ensure_hops_exposed(std::slice::from_ref(&shown), mcp).is_ok());
         let err = ensure_hops_exposed(&[shown.clone(), hidden.clone()], mcp).unwrap_err();
         assert!(err.to_string().contains("jump host"));
         assert!(ensure_hops_exposed(&[hidden], Frontend::Cli).is_ok());

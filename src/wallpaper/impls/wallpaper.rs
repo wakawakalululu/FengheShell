@@ -22,7 +22,6 @@ const H: u32 = 1000;
 /// a whole 6000px texture in GPU memory.
 const MAX_EDGE: u32 = 2560;
 
-
 /// Resolve a stored wallpaper id into an image + palette.
 ///
 /// ids: `""` → none; `"builtin:light"`; `"builtin:dark"`; anything else is

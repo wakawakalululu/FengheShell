@@ -17,8 +17,8 @@ use base64::Engine as _;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use crate::config::Secret;
 use super::structs::{ProxyConfig, ProxyKind};
+use crate::config::Secret;
 
 /// Resolve the proxy for a session: the explicit `session_proxy` string if set,
 /// otherwise the `ALL_PROXY` / `all_proxy` environment variable.  Returns `None`

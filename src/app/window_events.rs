@@ -58,7 +58,7 @@ pub(super) fn install_window_event_hook(
         let mut chrome_done = false;
         window
             .window()
-            .on_winit_window_event(move |slint_window, event| {
+            .on_winit_window_event(move |_slint_window, event| {
                 if !chrome_done {
                     chrome_done = true;
                     if let Some(win) = weak.upgrade() {
@@ -237,7 +237,7 @@ pub(super) fn install_window_event_hook(
                             // verifies the native window actually reached the target.
                             if !ev_window_size_tracking_ready.get() {
                                 if let Some(win) = weak.upgrade() {
-                                    if is_wayland_window(&win.window()) {
+                                    if is_wayland_window(win.window()) {
                                         ev_pending_window_size_restore.set(None);
                                         ev_window_size_tracking_ready.set(true);
                                         tracing::info!(
@@ -247,7 +247,7 @@ pub(super) fn install_window_event_hook(
                                         ev_pending_window_size_restore.get()
                                     {
                                         if let Some(target) = clamp_window_size_to_monitor(
-                                            &win.window(),
+                                            win.window(),
                                             Some(preferred),
                                         ) {
                                             tracing::info!(
@@ -300,7 +300,7 @@ pub(super) fn install_window_event_hook(
                                 set_term_fullscreen(&win, false);
                             }
                             if !ev_window_size_tracking_ready.get()
-                                && is_wayland_window(&win.window())
+                                && is_wayland_window(win.window())
                             {
                                 // The configure size in this event is authoritative
                                 // on Wayland. Accept and persist that actual size;
@@ -319,7 +319,7 @@ pub(super) fn install_window_event_hook(
                                     let actual =
                                         (size.width as f32 / scale, size.height as f32 / scale);
                                     if let Some(target) =
-                                        clamp_window_size_to_monitor(&win.window(), Some(preferred))
+                                        clamp_window_size_to_monitor(win.window(), Some(preferred))
                                     {
                                         tracing::info!(
                                             "[WINDOW_SIZE] restore requested saved={:.0}x{:.0} \

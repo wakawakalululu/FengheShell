@@ -101,8 +101,7 @@ impl Release {
                 && url.port().is_none()
                 && url.query().is_none()
                 && url.fragment().is_none()
-                && url.path()
-                    == format!("{RELEASE_DOWNLOAD_PATH}/{}/{name}", self.tag_name),
+                && url.path() == format!("{RELEASE_DOWNLOAD_PATH}/{}/{name}", self.tag_name),
             "Unexpected installer download URL"
         );
         ensure!(asset.size > 0, "The installer is empty");

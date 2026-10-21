@@ -55,9 +55,15 @@ pub(crate) fn format_permissions(mode: u32) -> String {
     let mut out = String::with_capacity(10);
     out.push(type_char);
     for (bit, ch) in [
-        (0o400, 'r'), (0o200, 'w'), (0o100, 'x'),
-        (0o040, 'r'), (0o020, 'w'), (0o010, 'x'),
-        (0o004, 'r'), (0o002, 'w'), (0o001, 'x'),
+        (0o400, 'r'),
+        (0o200, 'w'),
+        (0o100, 'x'),
+        (0o040, 'r'),
+        (0o020, 'w'),
+        (0o010, 'x'),
+        (0o004, 'r'),
+        (0o002, 'w'),
+        (0o001, 'x'),
     ] {
         out.push(if mode & bit != 0 { ch } else { '-' });
     }
@@ -68,7 +74,15 @@ pub(crate) fn format_permissions(mode: u32) -> String {
     ] {
         if mode & special != 0 {
             let execute = out.as_bytes()[index] == lower as u8;
-            out.replace_range(index..=index, &(if execute { upper } else { upper.to_ascii_uppercase() }).to_string());
+            out.replace_range(
+                index..=index,
+                &(if execute {
+                    upper
+                } else {
+                    upper.to_ascii_uppercase()
+                })
+                .to_string(),
+            );
         }
     }
     out

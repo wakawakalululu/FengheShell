@@ -1,8 +1,11 @@
-#[path = "struct/mod.rs"]
-mod structs;
 #[path = "impls/connection.rs"]
 mod connection;
-pub(crate) use connection::{with_automation_cancellation, inherit_automation_cancellation, disconnect_ssh, network_stage, HandshakeHandler, HostKeyWait};
+#[path = "struct/mod.rs"]
+mod structs;
+pub(crate) use connection::{
+    disconnect_ssh, inherit_automation_cancellation, network_stage, with_automation_cancellation,
+    HandshakeHandler, HostKeyWait,
+};
 #[path = "impls/known_hosts.rs"]
 pub(crate) mod known_hosts;
 #[path = "impls/ppk.rs"]

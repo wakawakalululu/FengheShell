@@ -116,13 +116,12 @@ pub(super) fn session_groups_model(store: &ConfigStore) -> ModelRc<SharedString>
 /// de-duplicated and sorted alphabetically — feeds the new/edit dialog's serial port
 /// dropdown.
 pub(super) fn session_serial_ports_model() -> ModelRc<SharedString> {
-    let mut named : Vec<String> = Vec::new();
+    let mut named: Vec<String> = Vec::new();
 
-    let ports = serialport::available_ports()
-        .unwrap_or_else(|e| {
-            tracing::error!("No available serial ports found: {e}");
-            Vec::new()
-        });
+    let ports = serialport::available_ports().unwrap_or_else(|e| {
+        tracing::error!("No available serial ports found: {e}");
+        Vec::new()
+    });
     for p in ports {
         named.push(p.port_name);
     }
@@ -387,7 +386,7 @@ fn quick_connect_builtin_sessions(store: &ConfigStore) -> Vec<Session> {
     sessions
 }
 
-pub(super) fn builtin_local_sessions(wsl_profiles: &[crate::config::WslProfile]) -> Vec<Session> {
+pub(super) fn builtin_local_sessions(_wsl_profiles: &[crate::config::WslProfile]) -> Vec<Session> {
     let mut out = Vec::new();
     #[cfg(windows)]
     {
@@ -507,7 +506,7 @@ pub(super) fn session_from_draft(
     } else {
         draft.private_key_path.to_string().replace('\\', "/")
     };
-    let kind = SessionKind::from_str(&draft.kind.to_string());
+    let kind = SessionKind::from_str(draft.kind.as_ref());
     // Auto-name: serial uses the device; otherwise user@host or just host (#110).
     let auto_name = match kind {
         SessionKind::Serial => format!("{} @{}", draft.serial_port, draft.baud_rate),
@@ -521,7 +520,7 @@ pub(super) fn session_from_draft(
         _ => 22,
     };
     let (rdp_fullscreen, rdp_width, rdp_height) = rdp_display_settings(
-        &draft.rdp_resolution.to_string(),
+        draft.rdp_resolution.as_ref(),
         draft.rdp_width,
         draft.rdp_height,
     );
@@ -539,7 +538,7 @@ pub(super) fn session_from_draft(
             draft.port as u16
         },
         user: draft.user.to_string(),
-        auth: AuthMethod::from_str(&draft.auth.to_string()),
+        auth: AuthMethod::from_str(draft.auth.as_ref()),
         password,
         private_key_path,
         private_key_inline,
@@ -580,7 +579,10 @@ pub(super) fn session_from_draft(
         jump_session_id: String::new(),
         jump_session_ids: if kind == SessionKind::Ssh {
             crate::config::draft_jump_ids(
-                draft.jumps.iter().map(|hop| (hop.id.to_string(), hop.placeholder)),
+                draft
+                    .jumps
+                    .iter()
+                    .map(|hop| (hop.id.to_string(), hop.placeholder)),
             )
         } else {
             Vec::new()
@@ -771,7 +773,10 @@ mod search_tests {
     #[test]
     fn sftp_mode_keeps_only_usable_choices() {
         assert_eq!(normalized_sftp_mode("sudo", ""), "sudo");
-        assert_eq!(normalized_sftp_mode("custom", "  sudo -u web sftp-server "), "custom");
+        assert_eq!(
+            normalized_sftp_mode("custom", "  sudo -u web sftp-server "),
+            "custom"
+        );
         assert_eq!(normalized_sftp_mode("custom", "   "), "");
         assert_eq!(normalized_sftp_mode("", "ignored"), "");
         assert_eq!(normalized_sftp_mode("bogus", ""), "");
@@ -811,9 +816,23 @@ mod serial_display_tests {
     #[test]
     fn serial_rows_show_device_and_framing_instead_of_ssh_defaults() {
         for (device, baud, bits, parity, stops, expected) in [
-            ("/dev/ttyUSB0", 115200, 8, "none", 1, "/dev/ttyUSB0 · 115200 baud · 8N1"),
+            (
+                "/dev/ttyUSB0",
+                115200,
+                8,
+                "none",
+                1,
+                "/dev/ttyUSB0 · 115200 baud · 8N1",
+            ),
             ("COM3", 9600, 7, "even", 2, "COM3 · 9600 baud · 7E2"),
-            ("/dev/ttyS0", 57600, 8, "odd", 1, "/dev/ttyS0 · 57600 baud · 8O1"),
+            (
+                "/dev/ttyS0",
+                57600,
+                8,
+                "odd",
+                1,
+                "/dev/ttyS0 · 57600 baud · 8O1",
+            ),
         ] {
             let mut session = Session::new_empty();
             session.kind = SessionKind::Serial;

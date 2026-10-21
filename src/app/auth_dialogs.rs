@@ -215,7 +215,7 @@ pub(super) fn abort_window_prompts(window_id: u64) {
 // ---------------------------------------------------------------------------
 
 thread_local! {
-    static CRED_QUEUE: RefCell<VecDeque<PendingCred>> = RefCell::new(VecDeque::new());
+    static CRED_QUEUE: RefCell<VecDeque<PendingCred>> = const { RefCell::new(VecDeque::new()) };
     /// session id → the answer given this run (`None` = cancelled), so a second
     /// connection for the same session is answered without re-prompting.
     static CRED_DECIDED: RefCell<HashMap<String, Option<crate::ssh::CredentialReply>>> =
@@ -384,7 +384,7 @@ pub(super) fn persist_credentials(
 // ---------------------------------------------------------------------------
 
 thread_local! {
-    static MFA_QUEUE: RefCell<VecDeque<PendingMfa>> = RefCell::new(VecDeque::new());
+    static MFA_QUEUE: RefCell<VecDeque<PendingMfa>> = const { RefCell::new(VecDeque::new()) };
 }
 
 /// Queue an MFA prompt: a concurrent connection for the same session *in the

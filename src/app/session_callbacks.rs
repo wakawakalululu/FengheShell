@@ -90,7 +90,7 @@ pub(super) fn wire_session_callbacks(
     }
 
     let editor_test = Rc::new(RefCell::new(crate::session_test::EditorTest::default()));
-    session_editor::register(&window, store.clone(), window_id, editor_test.clone());
+    session_editor::register(window, store.clone(), window_id, editor_test.clone());
     {
         let weak = window.as_weak();
         let active_test = editor_test.clone();
@@ -475,7 +475,7 @@ pub(super) fn wire_session_callbacks(
         window.on_remove_session(move |id: SharedString| {
             {
                 let mut s = store.borrow_mut();
-                s.remove(&id.to_string());
+                s.remove(id.as_ref());
                 if let Err(err) = s.save() {
                     tracing::warn!("failed to save config: {err:#}");
                 }
@@ -499,7 +499,7 @@ pub(super) fn wire_session_callbacks(
             let mut duplicated = false;
             {
                 let mut s = store.borrow_mut();
-                if let Some(orig) = s.get(&id.to_string()).cloned() {
+                if let Some(orig) = s.get(id.as_ref()).cloned() {
                     let mut copy = orig;
                     copy.id = uuid::Uuid::new_v4().to_string();
                     copy.name = format!("{} (copy)", copy.name);
@@ -531,7 +531,7 @@ pub(super) fn wire_session_callbacks(
             let mut moved = false;
             {
                 let mut s = store.borrow_mut();
-                if let Some(orig) = s.get(&id.to_string()).cloned() {
+                if let Some(orig) = s.get(id.as_ref()).cloned() {
                     let mut target = orig;
                     // "default" is the display label for ungrouped → store empty.
                     target.group = if group.as_str().eq_ignore_ascii_case("default") {
@@ -738,7 +738,7 @@ pub(super) fn wire_session_callbacks(
         window.on_delete_group(move |name: SharedString| {
             {
                 let mut s = store.borrow_mut();
-                s.remove_group(&name.to_string());
+                s.remove_group(name.as_ref());
                 if let Err(err) = s.save() {
                     tracing::warn!("failed to save config: {err:#}");
                 }
