@@ -194,7 +194,7 @@ impl RedactionMap {
             return text.to_string();
         }
         let mut pairs: Vec<(&String, &String)> = self.entries.iter().collect();
-        pairs.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        pairs.sort_by_key(|a| std::cmp::Reverse(a.0.len()));
         let mut out = text.to_string();
         for (ph, orig) in pairs {
             out = out.replace(ph.as_str(), orig.as_str());

@@ -228,7 +228,10 @@ opt-level = 3
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
-panic = "abort"
+# html2md declares dylib/staticlib crate types. Under panic="abort" rustc
+# fails with "the linked panic runtime panic_unwind is not compiled with this
+# crate's panic strategy abort". Keep unwind until html2md is rlib-only.
+panic = "unwind"
 
 [profile.dev]
 opt-level = 0

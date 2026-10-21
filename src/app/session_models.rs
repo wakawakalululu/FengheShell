@@ -386,7 +386,8 @@ fn quick_connect_builtin_sessions(store: &ConfigStore) -> Vec<Session> {
     sessions
 }
 
-pub(super) fn builtin_local_sessions(_wsl_profiles: &[crate::config::WslProfile]) -> Vec<Session> {
+#[cfg_attr(not(windows), allow(unused_variables))]
+pub(super) fn builtin_local_sessions(wsl_profiles: &[crate::config::WslProfile]) -> Vec<Session> {
     let mut out = Vec::new();
     #[cfg(windows)]
     {
@@ -459,6 +460,7 @@ pub(super) fn builtin_local_session(id: &str, name: impl Into<String>, host: &st
 #[cfg(windows)]
 pub(super) fn wsl_available() -> bool {
     use std::os::windows::process::CommandExt;
+    use std::sync::OnceLock;
 
     static AVAILABLE: OnceLock<bool> = OnceLock::new();
     *AVAILABLE.get_or_init(|| {

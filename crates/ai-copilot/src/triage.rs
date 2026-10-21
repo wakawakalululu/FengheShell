@@ -406,7 +406,7 @@ pub struct ToolLogEntry {
 /// 这是有意做的简化 —— 让模型每次都回报「哪些步骤完成了」既啰嗦又不可靠，
 /// 而一份计划里的步骤与实际行动基本是一一对应的。清单只用于**展示进度**，
 /// 真正的执行结果仍然以命令卡片和步骤痕迹为准。
-fn advance_plan(plan: &mut Vec<PlanStep>, failed: bool) {
+fn advance_plan(plan: &mut [PlanStep], failed: bool) {
     if plan.is_empty() {
         return;
     }
