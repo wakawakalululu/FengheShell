@@ -34,6 +34,17 @@ fn default_mcp_preview_enabled() -> bool {
     true
 }
 
+/// AI Copilot 用户自定义 Skill（rssh 的 DB skill 在 FengheShell 的配置载体）。
+/// `id` 可以是保留内置值 `general` 之外的任意字符串；`load_skill` 按 id 查找。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AiSkillSpec {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    pub content: String,
+}
+
 /// Ships with the "幻想 3048" sci-fi wallpaper on by default (a dark theme). New
 /// installs and users upgrading from before the wallpaper feature get it; once
 /// the user picks anything (including "无"/none, stored as ""), their choice is
@@ -334,12 +345,23 @@ pub struct ConfigFile {
     /// 只读命令（绿色 Gate）跳过确认直接执行 —— 仍发生在用户可见的终端里。
     #[serde(default)]
     pub ai_auto_run_readonly: bool,
+    /// YOLO 模式（完全信任）：关闭本地脱敏，并不再对任何命令（含破坏性）
+    /// 弹卡审批。默认关。仅建议受控环境 / 本地模型下开启。
+    #[serde(default)]
+    pub ai_yolo_mode: bool,
     /// 工作方式：`ask`（对话，只给建议）| `agent`（代理，自己取证/执行/验证）。
     #[serde(default)]
     pub ai_mode: String,
     /// 关闭补全层（命令栏的幽灵文本）。反向前缀：默认开启。
     #[serde(default)]
     pub ai_no_completion: bool,
+    /// AI Copilot 的用户自定义 Skill（`load_skill` 按需加载；内置 `general`
+    /// 已在 system prompt 里展开，不在这里）。没有 UI 管理入口，按
+    /// `ai_skills` JSON 数组手工编辑 sessions.json：`{id, name, description,
+    /// content}`；`id` 不能是 `general`。会话启动时快照进引擎，中途修改
+    /// 不影响正在跑的轮次。
+    #[serde(default)]
+    pub ai_skills: Vec<AiSkillSpec>,
     /// One-time default-layout migration marker (#new-user-defaults). 0 = config
     /// predates the migration. `migrate_defaults` bumps it to `DEFAULTS_REV` after
     /// pushing the new look (default wallpaper / welcome-as-sidebar / right-docked

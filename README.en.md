@@ -101,10 +101,11 @@ open /Applications/fengheshell.app
 - [x] Split panes for tabbed terminals
 - [x] Multiple windows: Ctrl+Shift+N (macOS ⌘⇧N) or the system "New window" entry (Windows taskbar / Linux desktop right-click), managed as a single Chrome-style process
 - [x] **AI Copilot drawer (built-in ops assistant)**: open it from the `AI` button on the terminal status strip
-  - Local redaction before anything leaves the machine (private IPs / hosts / tokens / private keys / sensitive `export` fields); commands the model echoes back with placeholders are restored locally before reaching the shell
+  - Local redaction before anything leaves the machine (private IPs / bearer & JWT tokens / `sk-` & AWS keys / long hex strings - eight built-in rules); commands the model echoes back with placeholders are restored locally before reaching the shell
   - Context comes from command-block parsing: OSC 133 semantic blocks when available, otherwise FengheShell's own shell hook (OSC 697), capped at the last 8 KB
   - Every question carries the live local resource snapshot (CPU / memory / disks / network), and opening the drawer during a hardware spike starts a triage round automatically
   - Human-in-the-loop run gate: read-only suggestions are green (run in one click), mutating / destructive ones are amber-red (filled into the terminal for you to press Enter), and anything the shape validator refuses cannot even be filled
+  - Tool surface (ported from rssh): `run_command` / `read_remote_file` / `web_search` / `web_fetch` (Ask and Agent modes); Agent mode adds `match_file` / `patch_file` (four approval cards to change a remote file; the remote needs python3 or perl) and the `set_plan` checklist; with user skills configured (`ai_skills` in `sessions.json`) there is also `load_skill`
   - OpenAI-compatible endpoints (OpenAI / DeepSeek / Groq), Anthropic, and local Ollama are supported; settings live in the local config file and the API key is encrypted like every other stored secret
   - See [docs/AI_COPILOT.md](docs/AI_COPILOT.md)
 
@@ -321,12 +322,17 @@ FengheShell/
 │   └── update/             # in-app updates (release feed not wired up yet)
 ├── crates/
 │   └── ai-copilot/         # AI ops copilot core: no SSH/PTY handle, unit-testable
-│       ├── sanitize/       # tree-sitter command shape check + blacklist (rssh)
-│       ├── redact/         # numbered-placeholder redaction + local restore map
-│       ├── blocks/         # OSC 133 semantic command blocks + 8 KB window
-│       ├── risk/           # 3-tier risk classification + Run Gate verdict
-│       ├── triage/         # LLM orchestration, tool loop, HITL approval
-│       └── shell/          # POSIX / PowerShell / cmd / raw-device adaptation
+│       ├── sanitize.rs     # tree-sitter command shape check + blacklist (rssh)
+│       ├── redact.rs       # numbered-placeholder redaction + local restore map
+│       ├── blocks.rs       # OSC 133 semantic command blocks + 8 KB window
+│       ├── risk.rs         # 3-tier risk classification + Run Gate verdict
+│       ├── triage.rs       # LLM orchestration, tool loop, HITL approval
+│       ├── shell.rs        # POSIX / PowerShell / cmd / raw-device adaptation
+│       ├── file_ops.rs     # match_file / patch_file remote command templates (rssh)
+│       ├── web_fetch.rs    # URL fetch + HTML→markdown (rssh)
+│       ├── web_search.rs   # Exa / Parallel hosted MCP search (rssh)
+│       ├── skills.rs       # builtin general + user skill catalog (load_skill)
+│       └── completion.rs   # ghost-text completion layer for the command bar
 ├── ui/                     # Slint UI (app.slint is the top-level window)
 │   ├── ai_panel.slint      # AI Copilot drawer
 │   ├── terminal_view.slint # terminal view + SFTP dock area

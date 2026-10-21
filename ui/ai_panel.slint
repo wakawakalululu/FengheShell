@@ -35,6 +35,8 @@ export component AiPanel inherits Rectangle {
     in property <string> model: "";
     in property <bool> redaction-enabled: true;
     in property <bool> auto-run-readonly: false;
+    /// YOLO 模式（完全信任）：开启时抽屉顶部常驻警示横幅。
+    in property <bool> yolo-mode: false;
 
     callback close();
     callback send(string);
@@ -179,6 +181,31 @@ export component AiPanel inherits Rectangle {
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
+                }
+            }
+        }
+
+        // --- YOLO 警示横幅（完全信任模式常驻）------------------------------
+        if root.yolo-mode : Rectangle {
+            height: 28px;
+            background: Theme.danger.with-alpha(0.15);
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 6px;
+                Text {
+                    text: "\u{E002}";
+                    font-family: "Material Icons";
+                    font-size: 14px;
+                    color: Theme.danger;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: @tr("YOLO mode: no redaction, no approval");
+                    color: Theme.danger;
+                    font-size: Theme.fs-xs;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
                 }
             }
         }

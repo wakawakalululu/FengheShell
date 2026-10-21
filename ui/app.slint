@@ -718,6 +718,9 @@ export component AppWindow inherits Window {
     in-out property <string> ai-model: "";
     in-out property <bool> ai-redaction-enabled: true;
     in-out property <bool> ai-auto-run-readonly: false;
+    /// YOLO 模式（完全信任）：关脱敏 + 所有命令免审批。默认关。
+    in-out property <bool> ai-yolo-mode: false;
+    callback ai-set-yolo(bool);                   // toggle + persist
     callback ai-send(string, string);            // tab-id, question
     callback ai-toggle(string);                  // tab-id
     callback ai-close(string);
@@ -726,6 +729,7 @@ export component AppWindow inherits Window {
     callback ai-run-card(string, string);        // tab-id, card-id
     callback ai-reject-card(string, string);     // tab-id, card-id
     callback ai-apply-settings(string, string, string, string, bool, bool);
+    callback ai-export-audit();
     in-out property <string> ai-test-status: "";
     in-out property <bool> ai-test-busy: false;
     /// AI 工作方式：`ask` | `agent`。
@@ -2105,6 +2109,7 @@ export component AppWindow inherits Window {
                         ai-complete-request(text) => { root.ai-complete-request(term.id, text); }
                         ai-completion-enabled <=> root.ai-completion-enabled;
                         ai-set-completion(v) => { root.ai-set-completion(v); }
+                        yolo-mode: root.ai-yolo-mode;
                         ai-protocol: root.ai-protocol;
                         ai-endpoint: root.ai-endpoint;
                         ai-model: root.ai-model;
@@ -5045,9 +5050,12 @@ export component AppWindow inherits Window {
                     ai-auto-run-readonly <=> root.ai-auto-run-readonly;
                     ai-completion-enabled <=> root.ai-completion-enabled;
                     ai-set-completion(v) => { root.ai-set-completion(v); }
+                    ai-yolo-mode <=> root.ai-yolo-mode;
+                    ai-set-yolo(v) => { root.ai-set-yolo(v); }
                     ai-apply-settings(p, e, m, k, r, a) => {
                         root.ai-apply-settings(p, e, m, k, r, a);
                     }
+                    ai-export-audit() => { root.ai-export-audit(); }
                     webdav-enabled <=> root.webdav-enabled;
                     webdav-url <=> root.webdav-url;
                     webdav-username <=> root.webdav-username;

@@ -72,6 +72,7 @@ component SectionHeader inherits Text {
 component SettingRow inherits Rectangle {
     in property <string> label;
     in property <string> desc;
+    in property <color> desc-color: Theme.text-muted;
     in property <bool> show-divider: true;
     VerticalLayout {
         HorizontalLayout {
@@ -84,7 +85,7 @@ component SettingRow inherits Rectangle {
                 spacing: 3px;
                 Text { text: root.label; font-size: 13px * Theme.panel-font; color: Theme.text-primary; }
                 if root.desc != "" : Text { text: root.desc; font-size: 11px * Theme.panel-font;
-                       color: Theme.text-muted; wrap: word-wrap; }
+                       color: root.desc-color; wrap: word-wrap; }
             }
             VerticalLayout {
                 alignment: center;
@@ -426,7 +427,11 @@ export component InterfacePanel inherits Rectangle {
     in-out property <bool> ai-auto-run-readonly: false;
     in-out property <bool> ai-completion-enabled: true;
     callback ai-set-completion(bool);
+    // YOLO 模式（完全信任）：即时开关，不走 Save 按钮。
+    in-out property <bool> ai-yolo-mode: false;
+    callback ai-set-yolo(bool);
     callback ai-apply-settings(string, string, string, string, bool, bool);
+    callback ai-export-audit();
     in-out property <bool> mcp-enabled: true;
     in-out property <bool> mcp-use-saved-credentials: true;
     in-out property <bool> mcp-allow-commands: true;
@@ -1575,8 +1580,8 @@ export component InterfacePanel inherits Rectangle {
                 SettingRow {
                     label: root.lang-en ? "Redact secrets locally" : "本地脱敏";
                     desc: root.lang-en
-                        ? "Private IPs, hostnames, tokens and keys are replaced with placeholders before anything leaves this machine."
-                        : "内网 IP、域名、Token 与密钥在离开本机前会被替换成占位符。";
+                        ? "Eight built-in rules (private IPs, bearer / JWT tokens, sk- / AWS keys, long hex strings) turn matches into placeholders before anything leaves this machine."
+                        : "8 条内置规则（内网 IP、Bearer / JWT Token、sk- / AWS key、长 hex 串）在离开本机前把命中内容替换成占位符。";
                     Switch {
                         on: root.ai-redaction-enabled;
                         toggled(v) => { root.ai-redaction-enabled = v; }
@@ -1604,9 +1609,26 @@ export component InterfacePanel inherits Rectangle {
                         toggled(v) => { root.ai-auto-run-readonly = v; }
                     }
                 }
+                // YOLO：完全信任模式。即时开关（不等 Save），开启时覆盖脱敏开关。
+                SettingRow {
+                    label: root.lang-en ? "YOLO mode (full trust)" : "YOLO 模式（完全信任）";
+                    desc-color: Theme.danger;
+                    desc: root.lang-en
+                        ? "Disables local redaction (secrets and tokens from the terminal may be sent verbatim to the model provider) and auto-approves every command - including destructive ones - without confirmation. Only for controlled environments or local models."
+                        : "关闭本地脱敏（终端里的密钥、Token 可能原样发往模型服务商），所有命令——包括破坏性命令——不再弹卡、由 AI 直接执行。仅建议在受控环境或本地模型下使用。";
+                    show-divider: false;
+                    Switch {
+                        on: root.ai-yolo-mode;
+                        toggled(v) => { root.ai-yolo-mode = v; root.ai-set-yolo(v); }
+                    }
+                }
                 HorizontalLayout {
                     spacing: 8px;
                     alignment: end;
+                    GhostButton {
+                        text: root.lang-en ? "Export audit log" : "导出审计日志";
+                        clicked => { root.ai-export-audit(); }
+                    }
                     GhostButton {
                         text: root.lang-en ? "Save" : "保存";
                         clicked => {
@@ -1622,8 +1644,8 @@ export component InterfacePanel inherits Rectangle {
                 Rectangle { height: 6px; }
                 Text {
                     text: root.lang-en
-                        ? "Stored in the regular config file; the API key is encrypted like every other saved secret. Open the drawer with the AI pill on the terminal status strip or Ctrl+Space."
-                        : "设置保存在常规配置文件中，API Key 与其它密码一样加密存储。终端状态条上的 AI 按钮或 Ctrl+Space 可打开抽屉。";
+                        ? "Stored in the regular config file; the API key is encrypted like every other saved secret. Open the drawer with the AI pill on the terminal status strip or Ctrl+Space. Every diagnosis round is recorded in an in-memory audit log (proposals, approvals, executions, web tools) - export it here as a text file."
+                        : "设置保存在常规配置文件中，API Key 与其它密码一样加密存储。终端状态条上的 AI 按钮或 Ctrl+Space 可打开抽屉。每轮诊断都会记录进内存审计日志（命令提议、审批、执行、Web 工具）—— 可在此导出为文本文件。";
                     color: Theme.text-muted;
                     font-size: 11px * Theme.panel-font;
                     wrap: word-wrap;

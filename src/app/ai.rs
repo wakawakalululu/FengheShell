@@ -422,15 +422,12 @@ pub(super) fn clear_completion_cache() {
     completion_cache().clear();
 }
 
-/// 每个标签的补全状态：请求序号保证「后发先至」的响应不会覆盖新输入的结果。
-pub(super) struct CompletionState {
-    seq: u64,
-}
-
-impl CompletionState {
-    fn new() -> Self {
-        Self { seq: 0 }
-    }
+/// 进程级审计日志（rssh session 级 audit 在 FengheShell 的对应物）。
+/// 引擎每轮 ask() 实时双写进来（含被停止 / 出错的轮次），设置页可导出。
+pub(super) fn audit_log() -> Arc<std::sync::Mutex<ai_copilot::audit::AuditLog>> {
+    static LOG: OnceLock<Arc<std::sync::Mutex<ai_copilot::audit::AuditLog>>> = OnceLock::new();
+    LOG.get_or_init(|| Arc::new(std::sync::Mutex::new(ai_copilot::audit::AuditLog::default())))
+        .clone()
 }
 
 /// 取这个标签的补全序号；同时把「已显示的补全」作废（输入变了）。
@@ -604,37 +601,20 @@ impl UiRuntime {
         raw.send(SessionCommand::RawInput(bytes))
             .map_err(|_| AppError::pty("session_channel_closed", serde_json::json!({})))
     }
-}
 
-#[async_trait]
-impl ToolRuntime for UiRuntime {
-    async fn request_approval(&self, p: &ProposedCommand) -> AppResult<bool> {
-        let (tx, rx) = oneshot::channel();
-        {
-            let mut guard = self.ai.lock().unwrap_or_else(|e| e.into_inner());
-            guard.set_approval(p.id.clone(), tx);
-        }
-        let card = message_card(p);
-        with_messages(&self.ai, &self.weak, &self.tab_id, Some(self.generation), |v| {
-            upsert_card(v, card)
-        });
-        match tokio::time::timeout(APPROVAL_TIMEOUT, rx).await {
-            Ok(Ok(ok)) => Ok(ok),
-            // 通道关闭（抽屉/会话已关）与超时的处置一致：按拒绝处理，
-            // AI 侧会收到拒绝并调整策略，用户的终端不会有任何动静。
-            Ok(Err(_)) | Err(_) => Ok(false),
-        }
-    }
-
-    async fn execute_approved(&self, p: &ProposedCommand) -> AppResult<CommandOutcome> {
+    /// 在 PTY 里跑一条带 sentinel 的命令并等待它的退出码 / 输出。
+    ///
+    /// `execute_approved`（审批过的卡片）与 `execute_internal`（file_ops 远端
+    /// 能力探测，无卡片）共用这一条路径 —— 两者都发生在用户可见的终端里。
+    async fn run_with_sentinel(&self, cmd: &str, timeout: Duration) -> AppResult<CommandOutcome> {
         let marker = format!("{}{}", AI_SENTINEL_PREFIX, uuid::Uuid::new_v4().simple());
-        let line = sentinel_wrap(&p.cmd, self.shell, &marker);
+        let line = sentinel_wrap(cmd, self.shell, &marker);
         {
             let mut guard = self.ai.lock().unwrap_or_else(|e| e.into_inner());
             guard.arm_exec(&marker);
         }
         self.send_line(&line)?;
-        let deadline = tokio::time::Instant::now() + EXEC_TIMEOUT;
+        let deadline = tokio::time::Instant::now() + timeout;
         loop {
             tokio::time::sleep(Duration::from_millis(80)).await;
             // 用户点了「停止」：不再等这条命令的结果。
@@ -671,6 +651,44 @@ impl ToolRuntime for UiRuntime {
                 });
             }
         }
+    }
+}
+
+#[async_trait]
+impl ToolRuntime for UiRuntime {
+    async fn request_approval(&self, p: &ProposedCommand) -> AppResult<bool> {
+        let (tx, rx) = oneshot::channel();
+        {
+            let mut guard = self.ai.lock().unwrap_or_else(|e| e.into_inner());
+            guard.set_approval(p.id.clone(), tx);
+        }
+        let card = message_card(p);
+        with_messages(&self.ai, &self.weak, &self.tab_id, Some(self.generation), |v| {
+            upsert_card(v, card)
+        });
+        match tokio::time::timeout(APPROVAL_TIMEOUT, rx).await {
+            Ok(Ok(ok)) => Ok(ok),
+            // 通道关闭（抽屉/会话已关）与超时的处置一致：按拒绝处理，
+            // AI 侧会收到拒绝并调整策略，用户的终端不会有任何动静。
+            Ok(Err(_)) | Err(_) => Ok(false),
+        }
+    }
+
+    async fn execute_approved(&self, p: &ProposedCommand) -> AppResult<CommandOutcome> {
+        // LLM 可以在 run_command 里请求等待秒数（schema 已钳制 1..=300）；
+        // 没给就沿用本宿主的默认上限。file_ops / web_fetch 卡片不带超时。
+        let secs = p
+            .timeout_s
+            .map(|t| t.clamp(1, 300) as u64)
+            .unwrap_or(EXEC_TIMEOUT.as_secs());
+        self.run_with_sentinel(&p.cmd, Duration::from_secs(secs)).await
+    }
+
+    /// file_ops 的远端能力探测（python3 / perl / diff）：不弹卡片，但仍然写在
+    /// 用户可见的 PTY 里，与 rssh 的 internal_command 一致。等待上限由调用方
+    /// （引擎按探测命令的性质给定）传入，宿不再私自加码。
+    async fn execute_internal(&self, cmd: &str, timeout_s: u64) -> AppResult<CommandOutcome> {
+        self.run_with_sentinel(cmd, Duration::from_secs(timeout_s)).await
     }
 
     async fn read_remote_file(&self, path: &str, max_bytes: usize) -> AppResult<String> {
@@ -754,6 +772,8 @@ pub(super) fn spawn_ask(runtime: &tokio::runtime::Handle, params: AskParams) {
         .lock()
         .map(|g| g.generation())
         .unwrap_or_default();
+    // 审计日志的目标标识要在 session 移交给 UiRuntime 之前取（本地标签没有会话）。
+    let audit_target = session.as_ref().map(|s| format!("ssh:{}", s.name));
     let cancel = ai
         .lock()
         .map(|mut g| g.begin_round())
@@ -769,7 +789,9 @@ pub(super) fn spawn_ask(runtime: &tokio::runtime::Handle, params: AskParams) {
         jump,
         shell,
     });
-    let engine = match TriageEngine::new(cfg.clone(), backend).map(|e| e.with_cancel(cancel)) {
+    let engine = match TriageEngine::new(cfg.clone(), backend)
+        .map(|e| e.with_cancel(cancel).with_audit_sink(audit_log()))
+    {
         Ok(e) => e,
         Err(e) => {
             push_notice(
@@ -793,6 +815,7 @@ pub(super) fn spawn_ask(runtime: &tokio::runtime::Handle, params: AskParams) {
         system: local.as_ref().map(to_ai_snapshot),
         shell,
         trigger,
+        target: audit_target,
     };
 
     let sink: ai_copilot::DeltaSink = Arc::new({

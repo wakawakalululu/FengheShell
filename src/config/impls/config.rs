@@ -1622,6 +1622,15 @@ impl ConfigStore {
         self.cache.ai_auto_run_readonly
     }
 
+    /// YOLO 模式（完全信任）：脱敏关闭 + 所有命令免审批直接执行。
+    pub fn ai_yolo_mode(&self) -> bool {
+        self.cache.ai_yolo_mode
+    }
+
+    pub fn set_ai_yolo_mode(&mut self, enabled: bool) {
+        self.cache.ai_yolo_mode = enabled;
+    }
+
     /// AI 工作方式（Ask / Agent）。未知值一律按更保守的 Ask 处理。
     pub fn ai_mode(&self) -> ai_copilot::triage::CopilotMode {
         ai_copilot::triage::CopilotMode::parse(&self.cache.ai_mode)
@@ -1638,6 +1647,32 @@ impl ConfigStore {
 
     pub fn set_ai_completion_enabled(&mut self, enabled: bool) {
         self.cache.ai_no_completion = !enabled;
+    }
+
+    /// 用户自定义 Skill（`load_skill` 工具用；内置 `general` 不在这里 —— 它
+    /// 已经在 system prompt 里展开）。空 id / 空内容 / 占用内置 id 的条目直接
+    /// 丢掉：坏的 skill 条目不该让整个目录消失。
+    pub fn ai_skills(&self) -> Vec<ai_copilot::skills::SkillRecord> {
+        self.cache
+            .ai_skills
+            .iter()
+            .filter(|s| {
+                !s.id.trim().is_empty()
+                    && !s.content.trim().is_empty()
+                    && s.id.trim() != ai_copilot::skills::GENERAL_ID
+            })
+            .map(|s| ai_copilot::skills::SkillRecord {
+                id: s.id.trim().to_string(),
+                name: if s.name.trim().is_empty() {
+                    s.id.trim().to_string()
+                } else {
+                    s.name.trim().to_string()
+                },
+                description: s.description.trim().to_string(),
+                content: s.content.clone(),
+                builtin: false,
+            })
+            .collect()
     }
 
     pub fn set_ai_settings(
@@ -2112,6 +2147,21 @@ mod tests {
         assert_eq!(store.ai_api_key(), "sk-secret");
         assert!(!store.ai_redaction_enabled());
         assert!(!store.ai_auto_run_readonly());
+    }
+
+    #[test]
+    fn ai_yolo_mode_defaults_off_and_toggles() {
+        let mut store = temp_store();
+        // 完全信任模式必须默认关闭，只能由用户显式开启。
+        assert!(!store.ai_yolo_mode());
+        store.set_ai_yolo_mode(true);
+        assert!(store.ai_yolo_mode());
+        store.set_ai_yolo_mode(false);
+        assert!(!store.ai_yolo_mode());
+        // 旧配置文件没有这个字段时按「关闭」处理。
+        let mut legacy = temp_store();
+        legacy.cache = serde_json::from_str("{}").expect("legacy config must deserialize");
+        assert!(!legacy.ai_yolo_mode());
     }
 
     #[test]

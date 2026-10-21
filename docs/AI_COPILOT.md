@@ -5,6 +5,9 @@ SFTP），rssh 提供「AI 运维 Copilot 范式」（无感上下文捕获、AI
 带副作用评级的命令执行）。两边都是 Rust，因此不需要跨语言 FFI 胶水层 —— AI 侧的
 逻辑以独立 crate 的形式注入基座。
 
+> **多会话面板（GitHub Copilot 风格布局：模型/模式/会话切换、记忆/技能/MCP 配置、
+> 多会话并行与历史管理）的需求分析与功能规划见 [AI_PANEL_REQUIREMENTS.md](AI_PANEL_REQUIREMENTS.md)。**
+
 ```text
 ┌──────────────────────────────────────────────────────────┐
 │                      Slint 视图层（ui-slint）            │
@@ -79,8 +82,6 @@ Agent 模式会先用 `set_plan` 工具把计划发布成一份**清单**（最�
 - max_tokens 只有 64，一次补全几十个 token；10 秒超时即静默放弃
 - 每次输入变化都会作废上一次响应（序号守卫），旧建议不会盖到新输入上
 
-[object Object]
-[object Object]
 ## 上下文是怎么抓的
 
 
@@ -98,8 +99,12 @@ Agent 模式会先用 `set_plan` 工具把计划发布成一份**清单**（最�
 
 ## 脱敏与还原
 
-`redact` 在转发之前把内网 IP / IPv6 / 内网域名 / Bearer、JWT、AWS key、私钥块 /
-`export` 里的敏感字段替换成编号占位符（`<INTERNAL_IP_1>`），映射表只存在本地内存。
+`redact` 在转发之前把内置 8 条规则命中的内容替换成编号占位符
+（`<INTERNAL_IP_1>`），映射表只存在本地内存。规则集与上游 rssh 的 seed 一致：
+内网 IP（`10.x` / `172.16-31.x` / `192.168.x`）、`Bearer` 头、`sk-` 开头密钥、
+`AKIA` 开头 AWS key、JWT（`eyJ…`）、32 位及以上的长 hex 串（哈希 / 会话号）。
+**不覆盖** IPv6、内网域名、私钥块与 `export` 敏感字段 —— 那些内容会原样出网，
+涉及它们的问题请自行规避或先改成本机占位符再提问。
 
 AI 若把占位符写回命令 —— 例如 `curl -s http://<INTERNAL_IP_1>/api/health` ——
 宿主在执行前会用同一张映射表反向还原成真实命令。注意顺序：**先还原、再过 shape
@@ -125,6 +130,38 @@ UI 上的对应关系：
 
 审批有 180 秒上限，超时或抽屉关闭都按「拒绝」结算，AI 不会卡死。
 
+`run_command` 可以带 `timeout_s`（1..=300 秒）：LLM 声明的等待上限会透传给宿主，
+没声明则用宿主默认（30 秒）。file_ops 的后端模板命令不走 LLM 超时。
+
+## YOLO 模式（完全信任）
+
+设置 → Interface → AI Copilot 页的 **YOLO 模式（完全信任）** 开关（默认关，
+即时生效、跨窗口同步）打开后，上面所有的护栏一次性全部撤掉：
+
+- **脱敏关闭**：系统提示、终端上下文、命令输出、网页正文都不再过脱敏规则 ——
+  终端里出现的密钥、Token 会原样发往你所配置的模型服务商。
+- **shape validator 跳过**：`rm -rf`、无界循环、写重定向等形态照单全收。
+- **审批全免**：只读 / 有副作用 / 高危命令一律直接执行，`run_command`、
+  file_ops 的四个步骤、`web_fetch` 都不再弹卡；「只读命令免确认执行」被覆盖。
+- **审计留痕**：每轮开始时会记一条 `yolo mode active` 的 Note，执行记录照常，
+  导出后能看到这个模式期间发生的一切。
+
+开启期间抽屉顶部常驻一条红色警示横幅。适用场景：受控环境（容器 / 快照可随时
+回滚的虚拟机）、完全本地的模型（如 Ollama）、或你就是要 AI 全自动干活的演练。
+任何面向生产凭据或不可逆操作的场景都不要开。关闭后所有护栏立即恢复。
+
+## 审计日志
+
+每轮诊断都会在引擎里记一份审计（rssh 同款事件点移植）：会话开始 / 用户提问 /
+每次 LLM 请求与回包的 token 数 / 命令的提议、审批、拦截与执行（含脱敏后的输出、
+字节数与耗时）/ Skill 加载 / web_search 与 web_fetch 的完成情况 / 备注与错误。
+
+- 只在**进程内存**里累积，不自动落盘；退出即清空。
+- 实时写入：用户中途「停止」的轮次，已发生的事件同样留在日志里。
+- 输出内容按当轮的「本地脱敏」开关处理，但仍含命令与输出 —— 导出文件按敏感文件保管。
+- 设置 → Interface → **AI Copilot** 页的 **Export audit log** 可保存为文本
+  （`fengheshell-ai-audit.log`），grep / less 友好。
+
 ## 硬件快照融合
 
 Triage 的 system prompt 里带着监控侧边栏同源的本机快照：CPU、内存 / 交换、负载、
@@ -138,6 +175,69 @@ FengheShell 自带 MCP Server（对外给别的客户端用）。AI Copilot 则�
 另一个客户端：`read_remote_file` 工具直接复用 `automation::read_text`，通过已保存的
 会话（含跳板链）读远端文件，因此你可以在抽屉里问「看看 /var/log/nginx/error.log 最后
 50 行错误」而不用自己去 SFTP 面板翻。
+
+## Web 工具（web_search / web_fetch）
+
+排障到一半需要查公开资料时，AI 可以直接用两个 web 工具（rssh 同款移植）：
+
+- **web_search**：走 Exa / Parallel 的匿名 Hosted MCP。查询**发出前**先在本地过
+  脱敏规则（内网 IP / Token / 密钥换成 `<REDACTED:…>`）—— 这是网络出站边界，
+  不靠模型自律；提供方按「模型@端点」的哈希二选一（负载均衡），可用环境变量
+  `FENGHESHELL_WEB_SEARCH_PROVIDER=exa|parallel` 固定。MCP 的文本响应原样喂给
+  LLM，不做结构化解析。
+- **web_fetch**：抓一个具体 URL 并转成 Markdown（HTML 全页转换，DOM 层丢弃
+  script/style 等，script 文本永远不会变成 Markdown）。5 MiB 响应上限、
+  64 KiB Markdown 截断；每次抓取都会弹出审批卡片，URL 对用户可见。
+
+两个工具返回的内容都是**不可信外部数据**：引擎会在结果前加警告，提示注入面
+（「忽略之前指令」之类的页面文本）由这层警告 + 模型指令共同防。
+
+## 文件修改（match_file / patch_file）
+
+排障经常要改配置（超时、开关、prometheus job…）。FengheShell **禁止一切自由形式
+的写文件命令**（`>` / `>>` / `tee` / `cp` / `mv` / `sed -i` / `python` … 都会被
+shape validator 拦下），唯一通路是 rssh 同款的两步工具（Agent 模式可用）：
+
+| 工具 | 作用 | 审批 |
+| --- | --- | --- |
+| `match_file(path, find)` | 在远端文件里定位字面文本，回 `{count, matches:[{line, context}]}`（远端 cap 50 条） | 只读：开了「只读命令免确认执行」时自动放行，否则一张卡 |
+| `patch_file(path, find, replace, expected_count)` | 把 `find` 全部替换为 `replace`，原子写回（tmp + mv），回 unified diff | 四张卡：cp → modify → diff → mv，每步都要点 |
+
+安全设计与 rssh 一致：
+
+- 命令由**后端模板**拼装（远端 `python3 -c $'…'`，perl 降级），不过 shape
+  validator；LLM 可控的只有 `find` / `replace` 文本，且全部经 ANSI-C 引号编码
+  （控制字符 hex 化，防终端转义注入；长多行脚本也因此保持单行，绕开 zsh ZLE 的
+  multi-line quote race）。
+- `patch_file` 落盘前重新读取文件并**校验出现次数**，与 `expected_count` 不符就
+  拒绝（race / 陈旧防护）；替换内容与原内容相同时跳过 `mv`，不碰 mtime/inode。
+- diff 为 0（无差异）时不覆盖文件，tmp 留给用户自己处置。
+- 远端需要 `python3`（首选）或 `perl`；`patch_file` 另需 `diff`。连上后第一次使用
+  时会在终端里跑一行只读探测（`echo "py3=… perl=… diff=…"`，不弹卡片），结果按轮次
+  缓存。仅 POSIX shell（bash/zsh）支持 —— Windows / 串口 / Telnet 会话会得到明确错误。
+
+## 技能（load_skill）
+
+`general` 规则集（诊断方法论 + Java/Go 剧本）永远展开在 system prompt 里。用户还
+可以把**自己的排查流程**写成 Skill，按需加载：
+
+在 `sessions.json` 里加 `ai_skills` 数组（没有管理 UI，直接编辑配置文件；`id` 不能
+是 `general`）：
+
+```json
+"ai_skills": [
+  {
+    "id": "user-mysql",
+    "name": "MySQL 慢查询排查",
+    "description": "慢查询 / 锁等待 / 主从延迟的标准流程",
+    "content": "1. show full processlist; 2. …"
+  }
+]
+```
+
+配置了之后，system prompt 会带上「Available skills」目录（id + 一句话描述），模型
+判断匹配就调 `load_skill(id)` 拉全文。会话启动时快照进引擎，中途改配置文件不影响
+正在跑的轮次。
 
 ## LLM 支持矩阵
 
@@ -156,6 +256,13 @@ FengheShell 自带 MCP Server（对外给别的客户端用）。AI Copilot 则�
   放弃请求，命令等待也会立刻结束。已经生成的那一小段文本会被丢弃（generation 机制）。
 - 串口 / Telnet 这类裸设备没有 shell，sentinel 无处附着，因此命令执行不适用，AI 只会
   给文本建议。
+- match_file / patch_file 只支持 POSIX shell（bash/zsh）的远端，且需要 python3 或 perl
+  （patch_file 另需 diff）；Windows / 串口 / Telnet 会话会拿到明确错误，应改用
+  run_command 的 grep / head 只读查看。
+- 用户自定义 Skill 目前只能手改 `sessions.json` 的 `ai_skills` 字段，没有管理界面。
+- web_search 的查询脱敏目前只走内置 8 条规则（内网 IP / Token / 密钥），用户自定义
+  脱敏规则暂不参与；需要时可以经引擎透传。
+- 审计日志只在进程内存里累积，不自动落盘；退出即清空，需要留痕请用设置页的导出按钮。
 
 ---
 
@@ -242,8 +349,6 @@ suggestion without losing focus.
 - Every keystroke invalidates the previous response (sequence guard), so a stale
   suggestion can never be painted over new input
 
-[object Object]
-[object Object]
 ## Context capture
 
 
@@ -264,14 +369,13 @@ Both paths `strip_ansi`-clean CSI / OSC noise and cap the window at the last
 
 ## Redaction and restoration
 
-Before anything leaves the machine, `redact` replaces private IPs / IPv6 /
-internal hostnames / bearer & JWT tokens / AWS keys / private-key blocks and
-sensitive `export` fields with numbered placeholders (`<INTERNAL_IP_1>`). The
-mapping stays in local memory only. When the model echoes a placeholder back
-inside a command, the host restores the real value before the command ever
-reaches the shell. Order matters: **restore first, then validate** —
-otherwise the angle brackets are parsed as shell redirections and an innocent
-probe gets blocked.
+Before anything leaves the machine, `redact` replaces what the built-in eight
+rules match with numbered placeholders (`<INTERNAL_IP_1>`). The rule set is the
+same as upstream rssh's seed: private IPs (`10.x` / `172.16-31.x` / `192.168.x`),
+`Bearer` headers, `sk-` keys, `AKIA` AWS keys, JWTs (`eyJ…`) and long hex
+strings (32+ chars - hashes / session ids). **Not covered**: IPv6, internal
+hostnames, private-key blocks and sensitive `export` fields — those leave the
+machine verbatim, so avoid them in questions or pre-replace them yourself.
 
 ## Run gate
 
@@ -292,6 +396,124 @@ Green: `cat`, `df -h`, `ps aux --sort=-%cpu | head`, `journalctl -u nginx` …
 Approval requests time out after 180 s; a timeout or a closed drawer counts as a
 rejection, so the AI never wedges.
 
+`run_command` may carry `timeout_s` (1..=300 s): the LLM's requested wait is
+forwarded to the host; without it the host default (30 s) applies. file_ops
+backend-template commands never take an LLM timeout.
+
+## YOLO mode (full trust)
+
+The **YOLO mode (full trust)** switch on the Settings -> Interface -> AI Copilot
+page (off by default, applied instantly and synced across windows) removes every
+guard rail described above at once:
+
+- **Redaction off**: system prompt, terminal context, command output and fetched
+  pages no longer pass through the redaction rules - secrets and tokens visible
+  in your terminal are sent verbatim to whichever model provider you configured.
+- **Shape validator skipped**: `rm -rf`, unbounded loops, write redirects and the
+  rest are accepted as they come.
+- **No approvals at all**: read-only, mutating and destructive commands all run
+  directly; `run_command`, the four file_ops steps and `web_fetch` stop showing
+  cards, and "auto-run read-only" is superseded.
+- **Audit trail kept**: each round starts with a `yolo mode active` note, and
+  executions are recorded as usual, so an export shows everything that happened
+  while the mode was on.
+
+A red warning banner stays pinned to the top of the drawer while the mode is on.
+Good uses: controlled environments (containers, VMs you can snapshot), fully
+local models (e.g. Ollama), or rehearsals where you want the AI to work
+unsupervised. Do not enable it around production credentials or irreversible
+operations. Turning it off restores every guard rail immediately.
+
+## Audit log
+
+Every diagnosis round records an audit inside the engine (same event points as
+rssh): session start / user question / each LLM request with its token counts /
+command proposed, rejected, blocked and executed (with redacted output, byte
+counts and duration) / skill loads / web_search and web_fetch completions /
+notes and errors.
+
+- It accumulates in **process memory** only and is never written automatically;
+  exiting the app clears it.
+- Entries are written as they happen, so a round the user stops mid-way still
+  keeps everything that already occurred.
+- Output honours the round's "Redact secrets locally" switch, but still contains
+  commands and output - treat an export as a sensitive file.
+- **Export audit log** on the Settings -> Interface -> **AI Copilot** page saves
+  it as text (`fengheshell-ai-audit.log`), grep / less friendly.
+
+## Web tools (web_search / web_fetch)
+
+When a diagnosis needs public references, the model can reach two web tools (ported
+from rssh):
+
+- **web_search** goes through the anonymous Hosted MCP of Exa / Parallel. The query
+  is redacted locally (private IPs / tokens / keys become `<REDACTED:…>`) **before**
+  it leaves the device — that is the network egress boundary, not model discipline.
+  The provider is picked by hashing "model@endpoint" (load balancing) and can be
+  pinned with `FENGHESHELL_WEB_SEARCH_PROVIDER=exa|parallel`. The MCP text response
+  is fed to the LLM verbatim, without structured parsing.
+- **web_fetch** fetches one exact URL and converts it to Markdown (full-page
+  conversion; script/style are dropped at DOM level, so script text never becomes
+  Markdown). 5 MiB response cap, 64 KiB Markdown truncation, and every fetch shows
+  the user an approval card with the URL visible.
+
+Both tools return **untrusted external data**: the engine prefixes the result with a
+warning, and that warning plus the system prompt together cover the prompt-injection
+surface (page text saying "ignore previous instructions").
+
+## File modification (match_file / patch_file)
+
+Diagnosis often ends in a config change (a timeout, a flag, a prometheus job…).
+FengheShell **forbids every free-form file write** (`>` / `>>` / `tee` / `cp` / `mv` /
+`sed -i` / `python` … are all rejected by the shape validator); the only path is the
+two-tool workflow ported from rssh (Agent mode):
+
+| Tool | Effect | Approval |
+| --- | --- | --- |
+| `match_file(path, find)` | Locates literal text in a remote file, returns `{count, matches:[{line, context}]}` (remote cap 50) | read-only: auto-approved when "auto-run read-only" is on, otherwise one card |
+| `patch_file(path, find, replace, expected_count)` | Replaces every `find` with `replace`, writes back atomically (tmp + mv), returns the unified diff | four cards: cp → modify → diff → mv, each needs a click |
+
+Safety mirrors rssh:
+
+- The commands are assembled from **backend templates** (remote `python3 -c $'…'`,
+  perl as fallback) and skip the shape validator; the LLM only controls `find` /
+  `replace`, which go through ANSI-C quoting (control characters hex-encoded against
+  terminal escape injection; long multi-line scripts stay single-line, avoiding the
+  zsh ZLE multi-line quote race).
+- `patch_file` re-reads the file before writing and **verifies the occurrence count**
+  against `expected_count` (race / staleness guard); a replacement identical to the
+  original skips the `mv` so mtime/inode stay untouched.
+- diff exit 0 (no difference) leaves the file alone and the tmp for the user.
+- The remote needs `python3` (preferred) or `perl`; `patch_file` additionally needs
+  `diff`. The first use runs one read-only probe in the terminal
+  (`echo "py3=… perl=… diff=…"`, no card), cached per round. POSIX shells (bash/zsh)
+  only — Windows / serial / Telnet sessions get a clear error.
+
+## Skills (load_skill)
+
+The `general` rule set (methodology + Java/Go playbooks) is always expanded into the
+system prompt. Users can additionally write **their own runbooks** as skills, loaded
+on demand:
+
+Add an `ai_skills` array to `sessions.json` (no management UI — edit the config file;
+`id` must not be `general`):
+
+```json
+"ai_skills": [
+  {
+    "id": "user-mysql",
+    "name": "MySQL slow-query triage",
+    "description": "Standard flow for slow queries / lock waits / replica lag",
+    "content": "1. show full processlist; 2. …"
+  }
+]
+```
+
+With skills configured, the system prompt carries an "Available skills" catalog
+(id + one-line description) and the model calls `load_skill(id)` when one matches.
+The catalog is snapshotted into the engine at round start; editing the file mid-round
+does not affect a running round.
+
 ## Known limitations
 
 - Local terminal tabs have no hook (`OSC 697` is installed into remote shells over
@@ -302,3 +524,12 @@ rejection, so the AI never wedges.
   text already generated is dropped (generation counter).
 - Raw-device sessions (serial / Telnet) have no shell to carry a sentinel, so command
   execution does not apply there; the AI answers in prose.
+- match_file / patch_file support POSIX shells (bash/zsh) only and need python3 or perl
+  on the remote (patch_file additionally `diff`); Windows / serial / Telnet sessions
+  get a clear error and should fall back to read-only run_command (grep / head).
+- User-defined skills can only be added by hand today: edit the `ai_skills` array in
+  `sessions.json`; there is no management UI.
+- web_search query redaction currently uses the built-in eight rules only (private
+  IPs / tokens / keys); user-defined redaction rules do not participate yet.
+- The audit log lives in process memory only and is never written automatically;
+  it clears on exit - use the export button on the settings page to keep a copy.

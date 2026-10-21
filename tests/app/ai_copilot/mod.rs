@@ -112,3 +112,46 @@ fn local_snapshot_maps_onto_the_ai_snapshot() {
     assert_eq!(snap.disks.len(), 1);
     assert_eq!(snap.disks[0].used_bytes, 90 * GIB);
 }
+
+#[test]
+fn the_process_audit_log_renders_for_export() {
+    use ai_copilot::audit::{AuditEntry, AuditKind};
+    // 引擎实时双写进这个进程级日志；导出按钮直接渲染它。
+    let log = audit_log();
+    let entries = vec![
+        AuditEntry {
+            at: chrono::Utc::now(),
+            kind: AuditKind::CommandProposed {
+                id: "cmd-1".into(),
+                cmd: "df -h".into(),
+                explain: "看磁盘".into(),
+                side_effect: "只读".into(),
+            },
+        },
+        AuditEntry {
+            at: chrono::Utc::now(),
+            kind: AuditKind::CommandExecuted {
+                id: "cmd-1".into(),
+                exit_code: 0,
+                output_redacted: "Filesystem".into(),
+                original_bytes: 10,
+                truncated_bytes: 0,
+                duration_ms: 42,
+            },
+        },
+    ];
+    if let Ok(mut g) = log.lock() {
+        for e in entries {
+            g.entries.push(e);
+        }
+    }
+    // 同一个进程里拿到的始终是同一份日志（导出与引擎写入不串味）。
+    assert!(std::ptr::eq(
+        Arc::as_ptr(&audit_log()),
+        Arc::as_ptr(&log)
+    ));
+    let text = log.lock().map(|g| g.to_log_string()).unwrap_or_default();
+    assert!(text.contains("CMD_PROPOSED"), "{text}");
+    assert!(text.contains("CMD_EXECUTED"), "{text}");
+    assert!(text.contains("FengheShell AI 排障审计"), "{text}");
+}

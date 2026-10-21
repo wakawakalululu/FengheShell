@@ -17,6 +17,14 @@ async-trait = "0.1"
 futures-util = "0.3"
 tree-sitter = "0.26.9"
 tree-sitter-bash = "0.25.1"
+# web_fetch 工具（rssh 移植）：URL 解析校验 + HTML→markdown。版本声明与上游
+# rssh 逐字一致（url = "2.5.8" / html2md = "0.2.15"）；caret 区间相同，当前
+# Cargo.lock 解析到 url 2.5.8 / html2md 0.2.17 —— 与上游同一浮动范围。
+url = "2.5.8"
+html2md = "0.2.15"
+# web_search 工具（rssh 移植）：routing_key 哈希二选一提供方。版本对齐上游
+# rssh（sha2 = "0.10"）。
+sha2 = "0.10"
 # LLM 传输：rssh 同款 reqwest + rustls（无系统 OpenSSL 依赖），流式 SSE
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots", "stream", "system-proxy"] }
 tokio = { version = "1", features = ["sync", "macros", "net", "io-util", "rt", "time"] }

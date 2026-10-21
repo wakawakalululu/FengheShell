@@ -1,7 +1,13 @@
 //! 内存审计日志 + 保存到人类可读文本。
 //!
 //! 决议 #4：审计 panel 时间线一目了然，用户主动点保存才落盘。
-//! 文件名形如 `rssh-diagnose-<session>-<ts>.log`。
+//! FengheShell 没有审计 panel：宿主把进程级日志经保存对话框导出（默认建议名
+//! `fengheshell-ai-audit.log`），本模块只提供「记录 + 渲染 + 落盘」纯逻辑。
+//!
+//! rssh 原版由 session actor 持有并在 16 个事件点 `audit_push`；FengheShell
+//! 没有 DB / 审计 panel，改为由 `triage::TriageEngine` 在每轮 ask() 内记录，
+//! 随 `TriageOutcome.audit` 交还给宿主，宿主汇总成进程级日志后可在设置页导出。
+//! 因此这里只保留「记录 + 渲染 + 落盘」三件纯逻辑，事件点在 triage.rs。
 
 use std::path::Path;
 
@@ -120,7 +126,7 @@ impl AuditLog {
     pub fn to_log_string(&self) -> String {
         let mut s = String::new();
         s.push_str(&format!(
-            "# rssh AI 排障审计\n# 共 {} 条记录\n# 生成时间: {}\n\n",
+            "# FengheShell AI 排障审计\n# 共 {} 条记录\n# 生成时间: {}\n\n",
             self.entries.len(),
             Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
         ));
@@ -289,9 +295,9 @@ mod tests {
 
     #[test]
     fn new_variants_serialize_with_expected_tags() {
-        // Wire contract with the front-end AuditKind union (src/lib/ai/types.ts):
-        // the panel switches on the snake_case `type` tag, so a drift here would
-        // silently drop the entry from the audit view.
+        // Wire contract: entries are serialized with a snake_case `type` tag
+        // (persisted/exported form), so a drift in a tag silently renames the
+        // entry in exported logs.
         let blocked = serde_json::to_value(AuditKind::CommandBlocked {
             cmd: "rm -rf /".into(),
             reason: "Destructive command not allowed: rm".into(),
@@ -361,7 +367,7 @@ mod tests {
         log.push(AuditKind::Note {
             message: "测试".into(),
         });
-        let path = std::env::temp_dir().join("rssh-audit-test.log");
+        let path = std::env::temp_dir().join("fengheshell-audit-test.log");
         log.save_to_file(&path).unwrap();
         let content = std::fs::read_to_string(&path).unwrap();
         assert!(content.contains("NOTE"));

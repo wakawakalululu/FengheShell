@@ -96,10 +96,11 @@ open /Applications/fengheshell.app
 - [x] 多标签页终端分屏
 - [x] 多窗口：Ctrl+Shift+N（macOS ⌘⇧N）或系统入口“新建窗口”（Windows 任务栏 / Linux 桌面右键），Chrome 式单进程管理
 - [x] **AI Copilot 抽屉（内置 AI 运维助手）**：终端状态条上的 `AI` 按钮打开右侧抽屉
-  - 出网前先做本地脱敏（内网 IP / 域名 / Token / 私钥 / `export` 敏感字段）；AI 回代带占位符的命令会在本机还原后才写入终端
+  - 出网前先做本地脱敏（内网 IP / Bearer、JWT Token / `sk-`、AWS key / 长 hex 串，共 8 条内置规则）；AI 回代带占位符的命令会在本机还原后才写入终端
   - 上下文来自命令块解析：优先 OSC 133 语义块，没有时退回 FengheShell 自带的 shell hook（OSC 697），只留最近 8 KB
   - 每次提问都会带上本机资源监控快照（CPU / 内存 / 磁盘 / 网络），硬件异常时打开抽屉会自动起一轮排查
   - Human-in-the-loop 执行网关：只读命令标绿（一键执行），有副作用 / 高危命令标橙红（只填入终端等你回车），被 shape validator 拦下的命令连填入都不允许
+  - 工具面（rssh 同款移植）：`run_command` / `read_remote_file` / `web_search` / `web_fetch`（Ask 与 Agent 模式），Agent 模式另加 `match_file` / `patch_file`（四张审批卡片改远端文件，远端需 python3 或 perl）与 `set_plan` 计划清单；配了用户 Skill（`sessions.json` 的 `ai_skills`）后还有 `load_skill`
   - 支持 OpenAI 兼容接口（OpenAI / DeepSeek / Groq）、Anthropic 与本地 Ollama；设置保存在本地配置文件，API Key 与其它密码一样加密存储
   - 详见 [docs/AI_COPILOT.md](docs/AI_COPILOT.md)
 
@@ -299,12 +300,17 @@ FengheShell/
 │   └── update/             # 应用内更新（发布源待接入）
 ├── crates/
 │   └── ai-copilot/         # AI 运维 Copilot 核心：不持有 SSH/PTY，可单测
-│       ├── sanitize/       # tree-sitter 命令形状校验 + 黑名单（rssh 移植）
-│       ├── redact/         # 编号占位符脱敏 + 本地反向还原
-│       ├── blocks/         # OSC 133 语义命令块 + 8KB 上下文窗口
-│       ├── risk/           # 三档风险分级 + Run Gate 裁决
-│       ├── triage/         # LLM 编排 / 工具循环 / Human-in-the-loop 审批
-│       └── shell/          # POSIX / PowerShell / cmd / 裸设备适配
+│       ├── sanitize.rs     # tree-sitter 命令形状校验 + 黑名单（rssh 移植）
+│       ├── redact.rs       # 编号占位符脱敏 + 本地反向还原
+│       ├── blocks.rs       # OSC 133 语义命令块 + 8KB 上下文窗口
+│       ├── risk.rs         # 三档风险分级 + Run Gate 裁决
+│       ├── triage.rs       # LLM 编排 / 工具循环 / Human-in-the-loop 审批
+│       ├── shell.rs        # POSIX / PowerShell / cmd / 裸设备适配
+│       ├── file_ops.rs     # match_file / patch_file 远端命令模板（rssh 移植）
+│       ├── web_fetch.rs    # URL 抓取 + HTML→markdown（rssh 移植）
+│       ├── web_search.rs   # Exa / Parallel hosted MCP 检索（rssh 移植）
+│       ├── skills.rs       # 内置 general + 用户 Skill 目录（load_skill）
+│       └── completion.rs   # 命令栏幽灵文本补全层
 ├── ui/                     # Slint 界面（app.slint 为顶层窗口）
 │   ├── ai_panel.slint      # AI Copilot 抽屉
 │   ├── terminal_view.slint # 终端视图 + SFTP 停靠区

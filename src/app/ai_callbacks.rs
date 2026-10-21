@@ -140,8 +140,10 @@ fn ai_config(store: &Rc<RefCell<ConfigStore>>, shell: ShellKind) -> CopilotConfi
         shell,
         redaction_enabled: s.ai_redaction_enabled(),
         auto_run_readonly: s.ai_auto_run_readonly(),
+        yolo: s.ai_yolo_mode(),
         locale: crate::i18n::current_code().to_string(),
         mode: s.ai_mode(),
+        skills: s.ai_skills(),
     }
 }
 
@@ -355,6 +357,7 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
         window.set_ai_model(s.ai_model().into());
         window.set_ai_redaction_enabled(s.ai_redaction_enabled());
         window.set_ai_auto_run_readonly(s.ai_auto_run_readonly());
+        window.set_ai_yolo_mode(s.ai_yolo_mode());
         window.set_ai_mode(s.ai_mode().as_str().into());
         window.set_ai_completion_enabled(s.ai_completion_enabled());
     }
@@ -436,6 +439,27 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
                 }
             });
             win.set_ai_completion_enabled(enabled);
+        });
+    }
+
+    // --- YOLO 模式（完全信任：关脱敏 + 免审批）--------------------------
+    {
+        let core = core.clone();
+        let store = store.clone();
+        let win = window.clone();
+        window.on_ai_set_yolo(move |enabled: bool| {
+            {
+                let mut s = store.borrow_mut();
+                s.set_ai_yolo_mode(enabled);
+                let _ = s.save();
+            }
+            // 所有窗口共享同一份设置，立刻同步到每个实例。
+            core.registry.for_each(|weak| {
+                if let Some(w) = weak.upgrade() {
+                    w.set_ai_yolo_mode(enabled);
+                }
+            });
+            win.set_ai_yolo_mode(enabled);
         });
     }
 
@@ -547,6 +571,62 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
         );
     }
 
+    // --- 导出审计日志 ------------------------------------------------------
+    // rssh 的审计 panel + 保存按钮在 FengheShell 的对应物：引擎实时双写的
+    // 进程级审计日志经 rfd 保存对话框写成人类可读文本。内容已按当轮脱敏
+    // 开关处理，仍可能含命令与输出，按敏感文件保管。
+    {
+        let weak = window.as_weak();
+        window.on_ai_export_audit(move || {
+            let text = {
+                let log = super::audit_log();
+                let guard = match log.lock() {
+                    Ok(g) => g,
+                    Err(e) => e.into_inner(),
+                };
+                if guard.entries.is_empty() {
+                    None
+                } else {
+                    Some(guard.to_log_string())
+                }
+            };
+            let Some(text) = text else {
+                DialogOwner::of_weak(&weak).message()
+                    .set_title(crate::i18n::t("AI 审计日志", "AI audit log"))
+                    .set_description(crate::i18n::t(
+                        "还没有审计记录：先在 AI 抽屉里跑一轮诊断。",
+                        "No audit entries yet - run a diagnosis in the AI drawer first.",
+                    ))
+                    .show();
+                return;
+            };
+            if let Some(path) = DialogOwner::of_weak(&weak)
+                .file()
+                .set_file_name("fengheshell-ai-audit.log")
+                .add_filter("LOG", &["log", "txt"])
+                .save_file()
+            {
+                let res = std::fs::write(&path, text);
+                let (title, desc): (&str, String) = match res {
+                    Ok(()) => (
+                        crate::i18n::t("已导出审计日志", "Audit log exported"),
+                        crate::i18n::t(
+                            "审计日志可能含命令与输出，请按敏感文件保管。",
+                            "The audit log may contain commands and output; treat it as sensitive.",
+                        )
+                        .to_string(),
+                    ),
+                    Err(e) => (crate::i18n::t("导出失败", "Export failed"), e.to_string()),
+                };
+                DialogOwner::of_weak(&weak)
+                    .message()
+                    .set_title(title)
+                    .set_description(desc)
+                    .show();
+            }
+        });
+    }
+
     // --- 设置保存 ----------------------------------------------------------
     {
         let core = core.clone();
@@ -599,6 +679,7 @@ pub(super) fn wire_ai(ctx: &WinCtx) {
                     win.set_ai_model(s.ai_model().into());
                     win.set_ai_redaction_enabled(s.ai_redaction_enabled());
                     win.set_ai_auto_run_readonly(s.ai_auto_run_readonly());
+                    win.set_ai_yolo_mode(s.ai_yolo_mode());
                 }
             });
         });
