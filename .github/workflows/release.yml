@@ -256,7 +256,7 @@ jobs:
           $candle = Get-ChildItem "C:\Program Files (x86)\WiX Toolset*\bin\candle.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($candle) { $env:PATH = "$($candle.DirectoryName);$env:PATH" }
           cargo install cargo-wix --locked
-          cargo wix --no-build --nocapture --target ${{ matrix.target }} --output "fengheshell-$VERSION-windows-x86_64.msi"
+          cargo wix --package fengheshell --no-build --nocapture --target ${{ matrix.target }} --output "fengheshell-$VERSION-windows-x86_64.msi"
           echo "MSI=fengheshell-$VERSION-windows-x86_64.msi" >> $env:GITHUB_ENV
 
       - name: Upload workflow artifact
