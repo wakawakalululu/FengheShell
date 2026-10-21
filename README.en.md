@@ -1,19 +1,16 @@
-# FengheShell
+# FengheShell (风河)
 
 [简体中文](./README.md) | **English**
 
-A lightweight, low-memory SSH / terminal client inspired by FinalShell, but
-written entirely in **Rust + [Slint](https://slint.dev)**. The goal is to keep
-FinalShell's core experience (resource-monitor sidebar, session management,
-tabbed terminals) while cutting memory use from the 400 MB+ of a JVM app down to
-the tens-of-MB range of a native binary.
+FengheShell (风河, pronounced *Fēng Hé*) is a lightweight, low-memory SSH /
+terminal client inspired by FinalShell, but written entirely in
+**Rust + [Slint](https://slint.dev)**. The goal is to keep FinalShell's core
+experience (resource-monitor sidebar, session management, tabbed terminals)
+while cutting memory use from the 400 MB+ of a JVM app down to the tens-of-MB
+range of a native binary.
 
-> **FengheShell** (literally "the stitched shell") is a fork and second-stage rewrite of
-> upstream MeatShell: it keeps the resource-monitor sidebar,
-> tabbed terminals and SFTP base, and stitches in the AI ops Copilot paradigm from
-> [rssh](https://github.com/shihuili1218/rssh) - terminal context capture, local redaction
-> and side-effect-rated command execution. Both upstreams are Rust, so no FFI glue is needed.
-> See [docs/AI_COPILOT.md](docs/AI_COPILOT.md).
+The Chinese name 风河 is a homophone of 缝合 ("stitching"), reflecting how the
+project stitches its upstreams together.
 
 ## Screenshots
 
@@ -29,13 +26,13 @@ the tens-of-MB range of a native binary.
 
 ## Download & install
 
-**No prebuilt packages are published for FengheShell yet - please build from
-source (see "Running" below).** The in-app "check for updates" is switched off as
-well: this project has no release feed of its own. Filling in `RELEASE_API` in
-`src/update.rs` is all it takes to turn it back on.
+Prebuilt packages are built by GitHub Actions. Once a version is published, get
+it from [GitHub Releases](https://github.com/wakawakalululu/FengheShell/releases);
+if no release is available yet, build from source (see "Running" below).
 
-(Packaging scripts and CI workflows stay in the tree, ready for when a release
-pipeline exists.)
+The in-app update checker is not wired to a release feed yet, so it will not
+check automatically. Set `RELEASE_API` and `RELEASE_DOWNLOAD_PATH` in
+`src/update.rs` to enable it.
 
 Building from source with `cargo run` on Linux Mint / Ubuntu / Debian requires
 the Slint/winit/rfd system development packages:
@@ -51,9 +48,9 @@ sudo apt install -y --no-install-recommends \
   libudev-dev
 ```
 
-### macOS
+### macOS package
 
-The download is a `.zip` containing the `fengheshell.app` bundle:
+If you have the macOS `.zip` build, it contains the `fengheshell.app` bundle:
 
 ```bash
 # Unzip (aarch64 = Apple Silicon, x86_64 = Intel)
@@ -302,6 +299,20 @@ sessions use the same host, include the GUI session name in the prompt. A good
 diagnostic prompt states the target host, log or dump paths, and whether restarts,
 configuration changes, or file downloads are allowed.
 
+### Remote MCP (Streamable HTTP)
+
+Besides local stdio, FengheShell can serve MCP over Streamable HTTP for remote
+deployments, with authentication delegated to an external OAuth 2.1 / OIDC
+provider. This mode is opt-in: start it with an explicit private profile and
+`--http-config`; the GUI, CLI, and local stdio MCP are unchanged.
+
+```bash
+fengheshell --data-dir /path/to/profile mcp serve --http-config /path/to/http.json
+```
+
+See [docs/REMOTE_MCP.md](docs/REMOTE_MCP.md) for deployment, authentication, and
+security limits.
+
 ## Project layout
 
 FengheShell *is* the repository root: the Cargo workspace lives here, `src/` holds
@@ -348,7 +359,6 @@ FengheShell/
 See [docs/AI_COPILOT.md](docs/AI_COPILOT.md) for how the copilot is layered, and
 [third_party/README.md](third_party/README.md) for what `third_party/` is for.
 
-
 ## Development notes
 
 - Slint widgets use a strict layout DSL; after editing a `.slint` file,
@@ -364,32 +374,29 @@ Do not bump `Cargo.toml` by hand and then create a tag. Use the release helper
 so the tag points at a commit that already contains the matching Cargo version:
 
 ```powershell
-.\scripts\release.ps1 v0.6.0 -Push
+.\scripts\release.ps1 v0.7.9 -Push
 ```
 
 The script updates `Cargo.toml` / `Cargo.lock`, runs `cargo check --locked`,
-verifies `fengheshell --version`, commits `Release v0.6.0`, creates an annotated
-tag, and pushes the current branch plus the tag. See
-[docs/release.md](docs/release.md) for details.
-
-## Related Groups
-
-<p align="center">
-  <img src="docs/QR/QQ_Group_QR_Code.jpg" alt="QQ group QR code" width="300"><br>
-  <em>Scan the QR code to join QQ groups to exchange user experiences, provide feedback, or get the latest updates</em>
-</p>
-
-## Friendly Links
-
-- [XenTerm](https://github.com/ixbaicn/XenTerm) (A new derivative fork, progressing together)
+verifies `fengheshell --version`, commits `Release v0.7.9`, creates an annotated
+tag, and pushes the current branch plus the tag. After the push, the
+[Release workflow](.github/workflows/release.yml) builds Windows / Linux / macOS
+packages on GitHub Actions and attaches them to the matching GitHub Release. You
+can also run that workflow manually to download build artifacts without creating
+a release. See [docs/release.md](docs/release.md) for details.
 
 ## License
 
 Dual-licensed under MIT OR Apache-2.0.
 
+## Upstream & credits
 
-## Authenticated remote MCP / 带认证的远程 MCP
+FengheShell is a second-stage fork of
+[MeatShell](https://github.com/yituorou/meatshell). It keeps MeatShell's
+resource-monitor sidebar, tabbed terminals, and SFTP base, and borrows the AI ops
+Copilot design from [rssh](https://github.com/shihuili1218/rssh): terminal context
+capture, local redaction, and side-effect-rated command execution. Both upstreams
+are Rust, so no FFI glue is needed.
 
-Run the new opt-in Streamable HTTP service with an external OAuth 2.1 provider,
-HTTPS reverse proxy and an explicitly selected private profile. Existing GUI, CLI
-and stdio MCP remain unchanged. See [deployment, authentication and security limits](docs/REMOTE_MCP.md).
+See [docs/AI_COPILOT.md](docs/AI_COPILOT.md) for the AI Copilot design and
+[third_party/README.md](third_party/README.md) for the rssh reference snapshot.
