@@ -31,8 +31,8 @@ pub(crate) fn char_at_cell_start(prefix: &[usize], target: usize) -> usize {
 
 pub(crate) fn char_after_cell_end(prefix: &[usize], target: usize) -> usize {
     let char_count = prefix.len().saturating_sub(1);
-    for index in 0..char_count {
-        if prefix[index] > target {
+    for (index, &value) in prefix.iter().take(char_count).enumerate() {
+        if value > target {
             return index;
         }
     }

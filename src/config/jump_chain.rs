@@ -201,8 +201,8 @@ mod tests {
         let mut saved: Vec<Session> = (0..MAX_JUMP_HOPS)
             .map(|i| session(&format!("h{i}"), if i == 0 { "" } else { "unused" }))
             .collect();
-        for i in 1..saved.len() {
-            saved[i].jump_session_id = format!("h{}", i - 1);
+        for (i, session) in saved.iter_mut().enumerate().skip(1) {
+            session.jump_session_id = format!("h{}", i - 1);
         }
         let target = session("target", &format!("h{}", MAX_JUMP_HOPS - 1));
         assert_eq!(

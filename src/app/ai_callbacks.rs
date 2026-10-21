@@ -708,12 +708,9 @@ fn ai_drawer_open(core: &AppCore, tab_id: &str) -> bool {
     window_for_tab(core, tab_id)
         .and_then(|win| {
             let model = win.get_terminals();
-            let Some(rows) = model
+            let rows = model
                 .as_any()
-                .downcast_ref::<slint::VecModel<TerminalState>>()
-            else {
-                return None;
-            };
+                .downcast_ref::<slint::VecModel<TerminalState>>()?;
             rows.iter()
                 .find(|r| r.id.as_str() == tab_id)
                 .map(|r| r.ai_open)

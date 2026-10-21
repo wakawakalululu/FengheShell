@@ -198,7 +198,7 @@ fn webdav_create_dir(agent: &ureq::Agent, url: &str, auth: Option<&str>) -> Resu
     let req = webdav_auth_req(agent.request("MKCOL", url), auth);
     match req.call() {
         Ok(_) => Ok(()),
-        Err(ureq::Error::Status(status, _)) if status == 405 => Ok(()),
+        Err(ureq::Error::Status(405, _)) => Ok(()),
         Err(ureq::Error::Status(status, _))
             if status == 401 || status == 403 || status == 404 || status == 409 =>
         {

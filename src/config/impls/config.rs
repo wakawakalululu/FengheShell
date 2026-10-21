@@ -2070,6 +2070,7 @@ impl ConfigStore {
 
 /// Isolated fixture for controller tests; never resolves the user's profile.
 #[cfg(test)]
+#[cfg_attr(not(windows), allow(dead_code))] // only the Windows reveal test uses it
 pub(crate) fn fixture_store(path: PathBuf, sessions: Vec<Session>) -> ConfigStore {
     let mut store = tests::temp_store();
     store.path = path;
@@ -2883,6 +2884,7 @@ fn lock_config(path: &Path) -> Result<fs::File> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(path.with_extension("json.lock"))?;
     fs2::FileExt::lock_exclusive(&file).context("cannot lock configuration")?;
     Ok(file)

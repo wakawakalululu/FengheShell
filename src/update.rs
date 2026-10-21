@@ -79,6 +79,7 @@ pub fn check() -> Result<Option<Release>> {
 }
 
 impl Release {
+    #[cfg(any(windows, test))]
     pub fn windows_installer(&self) -> Result<&Asset> {
         self.asset(&format!("fengheshell-{}-windows-x86_64.msi", self.tag_name))
     }

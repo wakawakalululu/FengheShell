@@ -321,9 +321,7 @@ fn clamped_detach_position(src_win: &AppWindow, gx: f32, gy: f32) -> slint::Phys
     let mut left = gx - 24.0;
     let mut top = gy - 8.0;
     let clamped = src_win.window().with_winit_window(|ww| {
-        let Some(monitor) = ww.current_monitor().or_else(|| ww.primary_monitor()) else {
-            return None;
-        };
+        let monitor = ww.current_monitor().or_else(|| ww.primary_monitor())?;
         let mscale = monitor.scale_factor().max(0.01);
         let mx = monitor.position().x as f32 / mscale as f32;
         let my = monitor.position().y as f32 / mscale as f32;

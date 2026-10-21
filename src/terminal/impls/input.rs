@@ -144,15 +144,13 @@ pub(crate) fn build_paste_preview(text: &str) -> String {
         }
 
         let mut display = String::new();
-        let mut n = 0usize;
-        for ch in line.chars() {
+        for (n, ch) in line.chars().enumerate() {
             if n >= MAX_LINE_CHARS {
                 display.push_str(ELLIPSIS);
                 truncated = true;
                 break;
             }
             display.push(ch);
-            n += 1;
         }
 
         if out.chars().count() + display.chars().count() + 1 + NOTICE_RESERVE > MAX_CHARS {
