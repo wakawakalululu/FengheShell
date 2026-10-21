@@ -131,9 +131,9 @@ under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). See
 cargo run --release
 ```
 
-On first launch an empty session store is created at
-`%APPDATA%/fengheshell/sessions.json`. Click **"＋ New Session"** in the top-right
-to add your first server.
+On first launch an empty session store is created in the platform config
+directory (see "Session management" above). Click **"＋ New Session"** in the
+top-right to add your first server.
 
 ## CLI and MCP automation
 
@@ -243,10 +243,13 @@ Then register a stdio MCP server named `fengheshell` in your MCP-capable client:
 }
 ```
 
-On Windows, `command` can be `C:\\path\\to\\fengheshell.exe`. Restart or refresh
-the MCP client; the `fengheshell` server should expose tools for session lookup,
-remote commands, directory listing, bounded text reads, uploads, and downloads.
-MCP configuration locations vary by AI client, so consult that client's docs.
+On macOS, the path is usually
+`/Applications/FengheShell.app/Contents/MacOS/fengheshell`; on Linux, use the
+actual binary path. On Windows, `command` can be
+`C:\\path\\to\\fengheshell.exe`. Restart or refresh the MCP client; the
+`fengheshell` server should expose tools for session lookup, remote commands,
+directory listing, bounded text reads, uploads, and downloads. MCP configuration
+locations vary by AI client, so consult that client's docs.
 
 #### MCP JSON-RPC examples
 
