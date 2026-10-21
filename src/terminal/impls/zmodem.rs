@@ -221,14 +221,12 @@ pub async fn receive(
         .await;
     }
 
-    let _ = events.send(SessionEvent::Output(
-        format!(
-            "\r\n[fengheshell] {} {} → {}\r\n",
-            received,
-            t("个文件已通过 sz 下载到", "file(s) downloaded via sz to"),
-            dest.display()
-        ),
-    ));
+    let _ = events.send(SessionEvent::Output(format!(
+        "\r\n[fengheshell] {} {} → {}\r\n",
+        received,
+        t("个文件已通过 sz 下载到", "file(s) downloaded via sz to"),
+        dest.display()
+    )));
     // Hand back any trailing bytes (the shell prompt) so the caller can display
     // them instead of the receiver swallowing them.
     Ok(rx.buf.drain(..).collect())
@@ -445,19 +443,14 @@ fn download_dir() -> PathBuf {
 
 /// Reduce a sender-supplied name to a safe basename inside the download dir.
 fn sanitize(name: &str) -> String {
-    let base = name
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(name);
+    let base = name.rsplit(['/', '\\']).next().unwrap_or(name);
     let cleaned: String = base
         .chars()
         .filter(|c| !matches!(c, '\0' | '/' | '\\'))
         .collect();
     // Trim trailing dots/spaces (illegal on Windows) and leading spaces, but
     // KEEP leading dots so dotfiles like ".viminfo" keep their name (#76).
-    let cleaned = cleaned
-        .trim_end_matches(['.', ' '])
-        .trim_start_matches(' ');
+    let cleaned = cleaned.trim_end_matches(['.', ' ']).trim_start_matches(' ');
     if cleaned.is_empty() || cleaned.chars().all(|c| c == '.') {
         "download".to_string()
     } else {

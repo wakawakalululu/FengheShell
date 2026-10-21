@@ -289,11 +289,7 @@ pub(super) fn handle_global_tab_drag_drop(
                     let states = core.window_states.borrow();
                     if let Some(st) = states.get(&new_id) {
                         use slint::Model as _;
-                        if let Some(i) = st
-                            .tabs_model
-                            .iter()
-                            .position(|t| t.id == "welcome")
-                        {
+                        if let Some(i) = st.tabs_model.iter().position(|t| t.id == "welcome") {
                             st.tabs_model.remove(i);
                         }
                         st.layout.borrow_mut().remove_tab("welcome");
@@ -385,11 +381,7 @@ pub(super) fn move_tab_between_windows(
     };
 
     // UI rows travel with the tab.
-    let Some(tab_i) = src
-        .tabs_model
-        .iter()
-        .position(|t| t.id == tab_id)
-    else {
+    let Some(tab_i) = src.tabs_model.iter().position(|t| t.id == tab_id) else {
         return false;
     };
     let tab_row = src.tabs_model.row_data(tab_i).unwrap();

@@ -417,15 +417,23 @@ mod automation_cancellation_tests {
 
     #[tokio::test]
     async fn late_spawn_inherits_already_cancelled_group() {
-        let child = with_automation_cancellation(async {
-            inherit_automation_cancellation(async {
-                let (transport, _peer) = tokio::io::duplex(8);
-                let (mut stream, mut handshake_guard) = CancelStream::new(transport);
-                handshake_guard.0 = None;
-                stream.write_all(b"no").await
+        let group = Arc::new(Mutex::new(TransportGroup::default()));
+        let guard = CancelGroupOnDrop(group.clone());
+        let child = AUTOMATION_TRANSPORTS
+            .scope(group, async {
+                // Capture the group while the scope is alive...
+                let late = inherit_automation_cancellation(async {
+                    let (transport, _peer) = tokio::io::duplex(8);
+                    let (mut stream, mut handshake_guard) = CancelStream::new(transport);
+                    handshake_guard.0 = None;
+                    stream.write_all(b"no").await
+                });
+                // ...then cancel the group before the captured child runs: a
+                // late start must still observe the already-cancelled group.
+                drop(guard);
+                late.await
             })
-        })
-        .await;
-        assert!(child.await.is_err());
+            .await;
+        assert!(child.is_err());
     }
 }
