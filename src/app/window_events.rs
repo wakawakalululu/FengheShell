@@ -58,7 +58,9 @@ pub(super) fn install_window_event_hook(
         let mut chrome_done = false;
         window
             .window()
-            .on_winit_window_event(move |_slint_window, event| {
+            .on_winit_window_event(move |slint_window, event| {
+                #[cfg(not(target_os = "windows"))]
+                let _ = slint_window;
                 if !chrome_done {
                     chrome_done = true;
                     if let Some(win) = weak.upgrade() {
