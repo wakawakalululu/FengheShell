@@ -166,9 +166,7 @@ pub(super) fn reorder_quick_command(
     index: usize,
     move_up: bool,
 ) -> Option<usize> {
-    let Some(current) = commands.get(index) else {
-        return None;
-    };
+    let current = commands.get(index)?;
     let group = current.group.trim().to_string();
     let target = if move_up {
         (0..index)

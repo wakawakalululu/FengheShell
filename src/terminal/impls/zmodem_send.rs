@@ -339,6 +339,6 @@ mod tests {
 
     #[test]
     fn send_blocks_fit_lrzsz_receiver_limit() {
-        assert!(SEND_BLOCK_SIZE <= 8 * 1024);
+        const { assert!(SEND_BLOCK_SIZE <= 8 * 1024) };
     }
 }

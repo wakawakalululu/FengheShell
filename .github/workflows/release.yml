@@ -14,6 +14,11 @@ on:
 permissions:
   contents: write   # needed to create / update the GitHub Release
 
+env:
+  # Tag builds keep the tag (v0.7.8); manual branch builds use a slash-free
+  # label so package paths stay valid even when the branch is ci/foo.
+  BUILD_VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
+
 jobs:
   check-version:
     name: Check tag version
@@ -125,7 +130,7 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: "1"   # no FUSE needed in CI
         run: |
           set -eu
-          VERSION="${GITHUB_REF_NAME:-dev}"
+          VERSION="${BUILD_VERSION}"
           wget -q -O linuxdeploy \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           wget -q -O linuxdeploy-plugin-appimage \
@@ -153,7 +158,7 @@ jobs:
           mkdir -p target/release
           cp target/${{ matrix.target }}/release/fengheshell target/release/fengheshell
           # Name it like the other release files: fengheshell-v0.7.8-linux-x86_64.deb
-          DEB="target/debian/fengheshell-${GITHUB_REF_NAME:-dev}-${{ matrix.name }}.deb"
+          DEB="target/debian/fengheshell-${BUILD_VERSION}-${{ matrix.name }}.deb"
           mkdir -p target/debian
           cargo deb --no-build --output "$DEB"
           test -f "$DEB"
@@ -163,7 +168,7 @@ jobs:
         shell: bash
         run: |
           set -eu
-          VERSION="${GITHUB_REF_NAME:-dev}"
+          VERSION="${BUILD_VERSION}"
           STAGE="fengheshell-${VERSION}-${{ matrix.name }}"
 
           if [ "${{ runner.os }}" = "macOS" ]; then
@@ -241,7 +246,7 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          $VERSION = "$env:GITHUB_REF_NAME"; if (-not $VERSION) { $VERSION = "dev" }
+          $VERSION = "$env:BUILD_VERSION"
           # WiX 3 toolset (candle/light) that cargo-wix drives.
           choco install wixtoolset -y --no-progress
           $candle = Get-ChildItem "C:\Program Files (x86)\WiX Toolset*\bin\candle.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -257,11 +262,12 @@ jobs:
           path: ${{ env.ASSET }}
 
       - name: Upload AppImage artifact
-        if: matrix.name == 'linux-x86_64'
+        if: matrix.name == 'linux-x86_64' && env.APPIMAGE != ''
         uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64-appimage
           path: ${{ env.APPIMAGE }}
+          if-no-files-found: ignore
 
       - name: Upload Debian package artifact
         if: runner.os == 'Linux'
@@ -425,7 +431,7 @@ jobs:
         shell: bash
         run: |
           set -eu
-          VERSION="${GITHUB_REF_NAME:-dev}"
+          VERSION="${BUILD_VERSION}"
           STAGE="fengheshell-${VERSION}-linux-aarch64-glibc228"
 
           mkdir "$STAGE"
@@ -520,7 +526,7 @@ jobs:
         shell: bash
         run: |
           set -eu
-          VERSION="${GITHUB_REF_NAME:-dev}"
+          VERSION="${BUILD_VERSION}"
           STAGE="fengheshell-${VERSION}-linux-x86_64-glibc228"
 
           mkdir "$STAGE"

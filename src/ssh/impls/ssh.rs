@@ -68,8 +68,11 @@ impl TriggerEngine {
             // Preserve enough trailing text for a match split across chunks.
             let keep = trigger.rule.expect.len().saturating_sub(1).max(256);
             if trigger.buffer.len() > keep {
-                let split = trigger.buffer.len() - keep;
-                let split = trigger.buffer.ceil_char_boundary(split);
+                let mut split = trigger.buffer.len() - keep;
+                // ceil_char_boundary() is stable since 1.91; keep MSRV 1.88.
+                while !trigger.buffer.is_char_boundary(split) {
+                    split += 1;
+                }
                 trigger.buffer.drain(..split);
             }
         }
@@ -2561,7 +2564,7 @@ fn parse_monitor_block(
         }
         *prev_net_at = now;
         // Show busiest first so the default-selected NIC is the active one.
-        net.sort_by(|a, b| (b.1 + b.2).cmp(&(a.1 + a.2)));
+        net.sort_by_key(|a| std::cmp::Reverse(a.1 + a.2));
     }
 
     let cpu_percent = if have_cpu {
