@@ -78,17 +78,13 @@ pub fn detect() -> Method {
     )
 }
 
-fn classify(
-    os: &str,
-    arch: &str,
-    exe: &Path,
-    appimage: Option<PathBuf>,
-    flatpak: bool,
-) -> Method {
+fn classify(os: &str, arch: &str, exe: &Path, appimage: Option<PathBuf>, flatpak: bool) -> Method {
     let parent_writable = |path: &Path| path.parent().is_some_and(dir_is_writable);
     match os {
         "windows" if arch == "x86_64" && parent_writable(exe) => {
-            Method::InPlace(Target::WindowsPortable { exe: exe.to_path_buf() })
+            Method::InPlace(Target::WindowsPortable {
+                exe: exe.to_path_buf(),
+            })
         }
         "linux" => {
             // /usr/local is install-linux.sh's root-owned copy, not a package.
@@ -104,7 +100,9 @@ fn classify(
                 };
             }
             if matches!(arch, "x86_64" | "aarch64") && parent_writable(exe) {
-                Method::InPlace(Target::LinuxTarball { exe: exe.to_path_buf() })
+                Method::InPlace(Target::LinuxTarball {
+                    exe: exe.to_path_buf(),
+                })
             } else {
                 Method::Manual
             }
@@ -120,7 +118,9 @@ fn classify(
                 .filter(|dir| dir.extension().is_some_and(|ext| ext == "app"));
             match bundle {
                 Some(bundle) if parent_writable(bundle) && dir_is_writable(bundle) => {
-                    Method::InPlace(Target::MacApp { bundle: bundle.to_path_buf() })
+                    Method::InPlace(Target::MacApp {
+                        bundle: bundle.to_path_buf(),
+                    })
                 }
                 _ => Method::Manual,
             }
@@ -310,7 +310,8 @@ impl Drop for Prepared {
 }
 
 fn parent(path: &Path) -> Result<&Path> {
-    path.parent().context("The installation has no parent folder")
+    path.parent()
+        .context("The installation has no parent folder")
 }
 
 fn old_exe_path(exe: &Path) -> PathBuf {
@@ -338,7 +339,9 @@ fn move_tree(from: &Path, to: &Path, skip: &[&str]) {
     if !to.join(RELEASE_MARKER).is_file() {
         return;
     }
-    let Ok(entries) = fs::read_dir(from) else { return };
+    let Ok(entries) = fs::read_dir(from) else {
+        return;
+    };
     for entry in entries.flatten() {
         let name = entry.file_name();
         let text = name.to_string_lossy();
@@ -500,7 +503,9 @@ pub fn relaunch(path: &Path) -> Result<()> {
             };
         }
     }
-    command.spawn().context("Could not start the new FengheShell")?;
+    command
+        .spawn()
+        .context("Could not start the new FengheShell")?;
     Ok(())
 }
 
@@ -526,7 +531,9 @@ pub fn wait_for_previous(args: &mut Vec<String>) {
     let Some(index) = args.iter().position(|arg| arg == WAIT_PID_ARG) else {
         return;
     };
-    let pid = args.get(index + 1).and_then(|value| value.parse::<u32>().ok());
+    let pid = args
+        .get(index + 1)
+        .and_then(|value| value.parse::<u32>().ok());
     args.drain(index..(index + 2).min(args.len()));
     if let Some(pid) = pid {
         wait_for_exit(pid, Duration::from_secs(60));
@@ -542,7 +549,14 @@ fn wait_for_exit(pid: u32, timeout: Duration) {
         system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
         match system.process(pid) {
             None => return,
-            Some(process) if matches!(process.status(), ProcessStatus::Zombie | ProcessStatus::Dead) => return,
+            Some(process)
+                if matches!(
+                    process.status(),
+                    ProcessStatus::Zombie | ProcessStatus::Dead
+                ) =>
+            {
+                return
+            }
             Some(_) => std::thread::sleep(Duration::from_millis(100)),
         }
     }
@@ -566,7 +580,9 @@ pub fn cleanup_after_update() {
 }
 
 fn cleanup_staging(root: &Path, stale: Duration) {
-    let Ok(entries) = fs::read_dir(root) else { return };
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         // Only folders this module created (uuid names); never follow links.

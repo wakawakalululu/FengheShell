@@ -204,7 +204,10 @@ mod emoji_cluster_tests {
         // vt100 puts each wide code point in its own cells; the cluster must
         // still reach the renderer whole, or it draws 👍 + 🏽 separately.
         assert_eq!(spans("A👍🏽B")[1], (1, 4, "👍🏽".to_string()));
-        assert_eq!(spans("A👨\u{200d}💻B")[1], (1, 4, "👨\u{200d}💻".to_string()));
+        assert_eq!(
+            spans("A👨\u{200d}💻B")[1],
+            (1, 4, "👨\u{200d}💻".to_string())
+        );
         assert_eq!(
             spans("👨\u{200d}👩\u{200d}👧 x")[0],
             (0, 6, "👨\u{200d}👩\u{200d}👧".to_string())

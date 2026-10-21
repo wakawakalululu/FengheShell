@@ -35,7 +35,9 @@ pub(super) fn validated_triggers(
             continue;
         }
         if draft.expect.trim().is_empty() {
-            return Err(t("请输入触发器的期望文本", "Enter the expected trigger text.").to_string());
+            return Err(
+                t("请输入触发器的期望文本", "Enter the expected trigger text.").to_string(),
+            );
         }
         let response = if draft.response.is_empty() {
             saved_responses.get(index).cloned().unwrap_or_default()
@@ -54,4 +56,3 @@ pub(super) fn validated_triggers(
     }
     Ok(out)
 }
-

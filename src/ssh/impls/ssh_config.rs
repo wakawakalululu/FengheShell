@@ -5,9 +5,9 @@
 //! patterns (`Host *`) and unsupported directives are ignored; this is a
 //! convenience importer, not a full ssh_config implementation.
 
+use super::structs::ImportedHost;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use super::structs::ImportedHost;
 
 const MAX_INCLUDE_DEPTH: usize = 16;
 
@@ -70,12 +70,7 @@ fn read_with_includes(
                     .collect();
                 matches.sort();
                 for included in matches {
-                    expanded.push_str(&read_with_includes(
-                        &included,
-                        home,
-                        visited,
-                        depth + 1,
-                    ));
+                    expanded.push_str(&read_with_includes(&included, home, visited, depth + 1));
                 }
             }
         } else {
@@ -300,7 +295,8 @@ Host scheme
 
     #[test]
     fn expands_relative_globbed_includes_and_ignores_cycles() {
-        let home = std::env::temp_dir().join(format!("fengheshell-ssh-config-{}", uuid::Uuid::new_v4()));
+        let home =
+            std::env::temp_dir().join(format!("fengheshell-ssh-config-{}", uuid::Uuid::new_v4()));
         let ssh = home.join(".ssh");
         let config_d = ssh.join("config.d");
         std::fs::create_dir_all(&config_d).unwrap();

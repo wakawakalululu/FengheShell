@@ -447,7 +447,8 @@ mod tests {
 
     #[test]
     fn earlier_directory_wins_and_extensions_are_tried_in_order() {
-        let root = std::env::temp_dir().join(format!("fengheshell-agents-{}", uuid::Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("fengheshell-agents-{}", uuid::Uuid::new_v4()));
         let first = root.join("first");
         let second = root.join("second");
         std::fs::create_dir_all(&first).unwrap();
@@ -479,7 +480,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("fengheshell-agents-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("claude"), b"").unwrap();
-        assert_eq!(find_program("claude", &[dir.clone()], &[""]), None);
+        assert_eq!(find_program("claude", std::slice::from_ref(&dir), &[""]), None);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

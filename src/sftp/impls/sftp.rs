@@ -591,7 +591,10 @@ async fn run_sftp(
                 let (entries, _) = enrich_entries_with_owners(&handle, &owner_cache, entries).await;
                 // Repaint when any name is available — the deferred home listing
                 // already painted with numbers/placeholders.
-                if entries.iter().any(|entry| entry.owner.is_some() || entry.group.is_some()) {
+                if entries
+                    .iter()
+                    .any(|entry| entry.owner.is_some() || entry.group.is_some())
+                {
                     let _ = events.send(SessionEvent::SftpEntries { path, entries });
                 }
             }
@@ -604,8 +607,15 @@ async fn run_sftp(
                 )));
                 match list_dir_impl(&sftp, &path).await {
                     Ok(entries) => {
-                        publish_dir_entries(&handle, &owner_cache, &names_ready_rx, &events, path.clone(), entries)
-                            .await;
+                        publish_dir_entries(
+                            &handle,
+                            &owner_cache,
+                            &names_ready_rx,
+                            &events,
+                            path.clone(),
+                            entries,
+                        )
+                        .await;
                         let _ = events.send(SessionEvent::SftpStatus(path));
                     }
                     Err(e) => {
@@ -623,8 +633,15 @@ async fn run_sftp(
                 )));
                 match list_dir_impl(&sftp, &path).await {
                     Ok(entries) => {
-                        publish_dir_entries(&handle, &owner_cache, &names_ready_rx, &events, path.clone(), entries)
-                            .await;
+                        publish_dir_entries(
+                            &handle,
+                            &owner_cache,
+                            &names_ready_rx,
+                            &events,
+                            path.clone(),
+                            entries,
+                        )
+                        .await;
                         let _ = events.send(SessionEvent::SftpStatus(path.clone()));
                     }
                     Err(e) => {
@@ -1236,7 +1253,15 @@ async fn run_sftp(
                     }
                 }
                 if let Ok(entries) = list_dir_impl(&sftp, &refresh).await {
-                    publish_dir_entries(&handle, &owner_cache, &names_ready_rx, &events, refresh, entries).await;
+                    publish_dir_entries(
+                        &handle,
+                        &owner_cache,
+                        &names_ready_rx,
+                        &events,
+                        refresh,
+                        entries,
+                    )
+                    .await;
                 }
             }
 
@@ -1260,7 +1285,15 @@ async fn run_sftp(
                     }
                 }
                 if let Ok(entries) = list_dir_impl(&sftp, &refresh).await {
-                    publish_dir_entries(&handle, &owner_cache, &names_ready_rx, &events, refresh, entries).await;
+                    publish_dir_entries(
+                        &handle,
+                        &owner_cache,
+                        &names_ready_rx,
+                        &events,
+                        refresh,
+                        entries,
+                    )
+                    .await;
                 }
             }
 
@@ -1285,7 +1318,15 @@ async fn run_sftp(
                     }
                 }
                 if let Ok(entries) = list_dir_impl(&sftp, &refresh).await {
-                    publish_dir_entries(&handle, &owner_cache, &names_ready_rx, &events, refresh, entries).await;
+                    publish_dir_entries(
+                        &handle,
+                        &owner_cache,
+                        &names_ready_rx,
+                        &events,
+                        refresh,
+                        entries,
+                    )
+                    .await;
                 }
             }
 
@@ -1317,7 +1358,15 @@ async fn run_sftp(
                     }
                 }
                 if let Ok(entries) = list_dir_impl(&sftp, &refresh).await {
-                    publish_dir_entries(&handle, &owner_cache, &names_ready_rx, &events, refresh, entries).await;
+                    publish_dir_entries(
+                        &handle,
+                        &owner_cache,
+                        &names_ready_rx,
+                        &events,
+                        refresh,
+                        entries,
+                    )
+                    .await;
                 }
             }
 
@@ -1541,7 +1590,9 @@ async fn read_text_guarded(
     let mut chunk = [0u8; 8192];
     let mut lines = 1usize;
     loop {
-        let count = reader.read(&mut chunk).await
+        let count = reader
+            .read(&mut chunk)
+            .await
             .map_err(|e| format!("{}: {e}", t("读取失败", "Read failed")))?;
         if count == 0 {
             break;
@@ -1617,8 +1668,9 @@ async fn exec_remote_output(
     let mut status = 0u32;
     while let Some(msg) = ch.wait().await {
         match msg {
-            russh::ChannelMsg::Data { data }
-            | russh::ChannelMsg::ExtendedData { data, .. } => output.extend_from_slice(&data),
+            russh::ChannelMsg::Data { data } | russh::ChannelMsg::ExtendedData { data, .. } => {
+                output.extend_from_slice(&data)
+            }
             russh::ChannelMsg::ExitStatus { exit_status } => status = exit_status,
             russh::ChannelMsg::Close => break,
             _ => {}
@@ -2118,11 +2170,8 @@ async fn prefetch_all_owner_names(
     // with an empty map (which would blank every owner until reconnect).
     let command = "command -v getent >/dev/null 2>&1 || exit 127; \
 getent passwd 2>/dev/null; printf '\\n--MEATSHELL-GROUPS--\\n'; getent group 2>/dev/null";
-    let Ok(Ok((status, output))) = tokio::time::timeout(
-        Duration::from_secs(5),
-        exec_remote_output(handle, command),
-    )
-    .await
+    let Ok(Ok((status, output))) =
+        tokio::time::timeout(Duration::from_secs(5), exec_remote_output(handle, command)).await
     else {
         return;
     };
@@ -2730,16 +2779,14 @@ impl Handler for SftpClientHandler {
         &mut self,
         server_public_key: &PublicKey,
     ) -> Result<bool, Self::Error> {
-        Ok(
-            crate::ssh::verify_host_key(
-                &self.host,
-                self.port,
-                server_public_key,
-                &self.events,
-                &self.host_key_wait,
-            )
-            .await,
+        Ok(crate::ssh::verify_host_key(
+            &self.host,
+            self.port,
+            server_public_key,
+            &self.events,
+            &self.host_key_wait,
         )
+        .await)
     }
 
     async fn data(
@@ -2763,8 +2810,8 @@ const _: fn() = || {
 mod sanitize_tests {
     use super::{
         available_download_path, chmod_attributes, download_target_path, external_edit_local_name,
-        sanitize_filename, validate_editor_text, EditorTextRejection,
-        MAX_BUILTIN_EDITOR_BYTES, MAX_BUILTIN_EDITOR_LINES, MAX_BUILTIN_EDITOR_LINE_BYTES,
+        sanitize_filename, validate_editor_text, EditorTextRejection, MAX_BUILTIN_EDITOR_BYTES,
+        MAX_BUILTIN_EDITOR_LINES, MAX_BUILTIN_EDITOR_LINE_BYTES,
     };
 
     #[test]
@@ -2840,13 +2887,19 @@ mod sanitize_tests {
 
     #[test]
     fn keep_both_uses_the_first_available_numbered_name() {
-        let dir = std::env::temp_dir().join(format!("fengheshell-download-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!(
+            "fengheshell-download-test-{}",
+            uuid::Uuid::new_v4()
+        ));
         std::fs::create_dir_all(&dir).unwrap();
         let requested = download_target_path("/remote/report.txt", dir.to_str().unwrap());
         std::fs::write(&requested, b"old").unwrap();
         std::fs::write(dir.join("report (1).txt"), b"older").unwrap();
 
-        assert_eq!(available_download_path(&requested), dir.join("report (2).txt"));
+        assert_eq!(
+            available_download_path(&requested),
+            dir.join("report (2).txt")
+        );
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
@@ -2871,7 +2924,10 @@ mod sanitize_tests {
             "",
         ] {
             assert!(!super::has_control_bytes(text.as_bytes()), "{text:?}");
-            assert_eq!(validate_editor_text(text.as_bytes().to_vec()), Ok(text.to_string()));
+            assert_eq!(
+                validate_editor_text(text.as_bytes().to_vec()),
+                Ok(text.to_string())
+            );
         }
         for binary in [
             &b"\x89PNG\r\n\x1a\n"[..],
@@ -2921,10 +2977,15 @@ mod sanitize_tests {
     fn editor_line_limit_is_ten_thousand_including_trailing_empty_line() {
         for newline in ["\n", "\r\n"] {
             let exact = newline.repeat(9_999);
-            assert_eq!(validate_editor_text(exact.as_bytes().to_vec()), Ok(exact.clone()));
+            assert_eq!(
+                validate_editor_text(exact.as_bytes().to_vec()),
+                Ok(exact.clone())
+            );
             let over = format!("{exact}{newline}");
-            assert_eq!(validate_editor_text(over.into_bytes()),
-                Err(EditorTextRejection::TooManyLines));
+            assert_eq!(
+                validate_editor_text(over.into_bytes()),
+                Err(EditorTextRejection::TooManyLines)
+            );
         }
     }
 

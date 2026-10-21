@@ -31,19 +31,6 @@ pub(super) fn refresh_process_model(win: &AppWindow, statuses: &TabStatuses) {
     }
 }
 
-#[cfg(test)]
-mod activity_tests {
-    use super::dynamic_sidebar_visible;
-
-    #[test]
-    fn dynamic_sidebar_updates_only_while_active_and_expanded() {
-        assert!(dynamic_sidebar_visible(true, false));
-        assert!(!dynamic_sidebar_visible(false, false));
-        assert!(!dynamic_sidebar_visible(true, true));
-        assert!(!dynamic_sidebar_visible(false, true));
-    }
-}
-
 pub(super) fn refresh_sidebar(
     win: &AppWindow,
     statuses: &TabStatuses,
@@ -236,14 +223,16 @@ pub(super) fn refresh_sidebar(
             } else {
                 0
             });
-            win.set_connection_state(if st.state == 1 {
-                st.host.clone()
-            } else if st.state == 2 {
-                format!("{} {}", st.host, t("已断开", "disconnected"))
-            } else {
-                format!("{} {}", t("连接中", "Connecting"), st.host)
-            }
-            .into());
+            win.set_connection_state(
+                if st.state == 1 {
+                    st.host.clone()
+                } else if st.state == 2 {
+                    format!("{} {}", st.host, t("已断开", "disconnected"))
+                } else {
+                    format!("{} {}", t("连接中", "Connecting"), st.host)
+                }
+                .into(),
+            );
             win.set_conn_host(conn_ip(&st.host).into());
             show_local_res(win);
             set_top_local(win);
@@ -378,7 +367,7 @@ pub(super) fn wire_sidebar_refresh_and_theme(
         let tabs_model = tabs_model.clone();
         let registry = registry.clone();
         window.on_set_language(move |code| {
-            crate::i18n::set_language(&code.to_string());
+            crate::i18n::set_language(code.as_ref());
             {
                 let mut s = store.borrow_mut();
                 s.set_language(crate::i18n::current_code().to_string());
@@ -389,7 +378,7 @@ pub(super) fn wire_sidebar_refresh_and_theme(
             for i in 0..tabs_model.row_count() {
                 if let Some(mut row) = tabs_model.row_data(i) {
                     if row.id.as_str() == "welcome" {
-                        row.title_len = tab_title_len(&t("新标签页", "New tab"));
+                        row.title_len = tab_title_len(t("新标签页", "New tab"));
                         row.title = t("新标签页", "New tab").into();
                         tabs_model.set_row_data(i, row);
                     }
@@ -437,5 +426,18 @@ pub(super) fn wire_sidebar_refresh_and_theme(
             }
             registry.broadcast_config_changed();
         });
+    }
+}
+
+#[cfg(test)]
+mod activity_tests {
+    use super::dynamic_sidebar_visible;
+
+    #[test]
+    fn dynamic_sidebar_updates_only_while_active_and_expanded() {
+        assert!(dynamic_sidebar_visible(true, false));
+        assert!(!dynamic_sidebar_visible(false, false));
+        assert!(!dynamic_sidebar_visible(true, true));
+        assert!(!dynamic_sidebar_visible(false, true));
     }
 }

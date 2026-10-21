@@ -8,11 +8,11 @@
 //! bytes, that auto-overwrites its old content. This lets users (e.g. behind a
 //! bastion) send their disconnect reason without setting RUST_LOG.
 
+use super::writer::{CappedFile, CappedWriter, Guard};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use super::writer::{CappedFile, CappedWriter, Guard};
 
 /// `<log_dir>/error.log`, in its own `log/` folder beside the exe.
 pub fn path() -> Option<PathBuf> {

@@ -41,7 +41,7 @@ use crate::llm::{
     build_client, ChatDelta, ChatMessage, ChatRequest, ChatResponse, DeltaSink, LlmClient,
     ToolSchema,
 };
-use crate::redact::{RedactionMap, IndexedRedactor};
+use crate::redact::{IndexedRedactor, RedactionMap};
 use crate::risk::{assess_command, gate_of, Gate, RiskLevel};
 use crate::sanitize::{self, DEFAULT_MAX_OUTPUT_BYTES};
 use crate::shell::ShellKind;
@@ -234,7 +234,8 @@ impl SystemSnapshot {
 
     /// 渲染进 prompt 的紧凑文本段。
     pub fn to_prompt_section(&self) -> String {
-        let mut s = String::from("## Host resource snapshot (live from the FengheShell monitor sidebar)\n");
+        let mut s =
+            String::from("## Host resource snapshot (live from the FengheShell monitor sidebar)\n");
         s.push_str(&format!("- CPU usage: {:.1}%\n", self.cpu_usage_pct));
         s.push_str(&format!(
             "- Memory: {} / {} MB used\n",
@@ -412,7 +413,7 @@ fn advance_plan(plan: &mut Vec<PlanStep>, failed: bool) {
     let idx = plan
         .iter()
         .position(|s| s.state == PlanStepState::Running)
-        .unwrap_or_else(|| plan.len());
+        .unwrap_or(plan.len());
     if let Some(step) = plan.get_mut(idx) {
         step.state = if failed {
             PlanStepState::Failed
@@ -427,7 +428,6 @@ fn advance_plan(plan: &mut Vec<PlanStep>, failed: bool) {
         }
     }
 }
-
 
 /// 补全层（对应 GitHub Copilot 的代码补全）：给一个还没敲完的命令前缀，
 /// 预测「后面应该接什么」。刻意做得又小又快 —— 不带工具、不流式、
@@ -485,7 +485,11 @@ fn clean_completion(raw: &str, prefix: &str) -> String {
         text = text
             .trim_start_matches('`')
             .lines()
-            .skip_while(|l| !l.trim().is_empty() && l.trim().chars().all(|c| !c.is_whitespace()) && !l.contains(' '))
+            .skip_while(|l| {
+                !l.trim().is_empty()
+                    && l.trim().chars().all(|c| !c.is_whitespace())
+                    && !l.contains(' ')
+            })
             .collect::<Vec<_>>()
             .join("\n");
         text = text.replace("```", "");
@@ -507,7 +511,6 @@ fn clean_completion(raw: &str, prefix: &str) -> String {
     }
     out
 }
-
 
 /// 一次 ask() 的总输出。
 #[derive(Debug, Clone)]
@@ -645,11 +648,7 @@ impl TriageEngine {
 
     /// 补全层：给一个命令前缀，返回「后面应该接什么」—— 只返回**补全部分**，
     /// 不含用户已经输入的前缀。失败或模型无话可说时返回空串，调用方直接不显示即可。
-    pub async fn complete(
-        &self,
-        prefix: &str,
-        ctx: &CompletionContext,
-    ) -> AppResult<String> {
+    pub async fn complete(&self, prefix: &str, ctx: &CompletionContext) -> AppResult<String> {
         let prefix = prefix.trim_end();
         if prefix.trim().is_empty() {
             return Ok(String::new());
@@ -657,11 +656,7 @@ impl TriageEngine {
         let req = ChatRequest {
             system_prompt: COMPLETION_PROMPT.to_string(),
             messages: vec![ChatMessage::User {
-                content: format!(
-                    "{}\nComplete this command:\n{}",
-                    ctx.as_prompt(),
-                    prefix
-                ),
+                content: format!("{}\nComplete this command:\n{}", ctx.as_prompt(), prefix),
             }],
             tools: Vec::new(),
             model: self.cfg.model.clone(),
@@ -704,7 +699,9 @@ impl TriageEngine {
 
         let system = redact(&self.build_system_prompt(ctx), &mut map);
         let user = redact(&self.build_user_message(ctx), &mut map);
-        let mut messages = vec![ChatMessage::User { content: user.clone() }];
+        let mut messages = vec![ChatMessage::User {
+            content: user.clone(),
+        }];
         let mut proposed: Vec<ProposedCommand> = Vec::new();
         let mut plan: Vec<PlanStep> = Vec::new();
         let mut tool_log: Vec<ToolLogEntry> = Vec::new();
@@ -713,15 +710,13 @@ impl TriageEngine {
         // ── 审计：轮次开始（rssh 的 SessionStarted / UserMessage 同款） ──
         self.audit_push(AuditKind::SessionStarted {
             skill: "general".into(),
-            target: ctx
-                .target
-                .clone()
-                .unwrap_or_else(|| "local".into()),
+            target: ctx.target.clone().unwrap_or_else(|| "local".into()),
         });
         if self.cfg.yolo {
             self.audit_push(AuditKind::Note {
-                message: "yolo mode active: local redaction disabled and every command auto-approved"
-                    .into(),
+                message:
+                    "yolo mode active: local redaction disabled and every command auto-approved"
+                        .into(),
             });
         }
         self.audit_push(AuditKind::UserMessage { content: user });
@@ -869,10 +864,7 @@ impl TriageEngine {
                     .exit_code
                     .map(|c| c.to_string())
                     .unwrap_or_else(|| "?".into());
-                transcript.push_str(&format!(
-                    "$ {}\n[exit {exit}]\n{}\n",
-                    b.command, b.output
-                ));
+                transcript.push_str(&format!("$ {}\n[exit {exit}]\n{}\n", b.command, b.output));
             }
             let t = sanitize::truncate(&transcript, DEFAULT_CONTEXT_BYTES_FOR_PROMPT);
             s.push_str(&t.text);
@@ -926,11 +918,7 @@ impl TriageEngine {
     /// 探测命令走 `execute_internal`：**不弹审批卡片**（一行只读 echo，对用户
     /// 透明，与 rssh 的 internal_command 一致），但仍然写在用户可见的 PTY 里。
     async fn ensure_remote_caps(&self) -> AppResult<RemoteCapabilities> {
-        if let Some(caps) = *self
-            .remote_caps
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-        {
+        if let Some(caps) = *self.remote_caps.lock().unwrap_or_else(|e| e.into_inner()) {
             return Ok(caps);
         }
         self.audit_push(AuditKind::Note {
@@ -1112,7 +1100,11 @@ impl TriageEngine {
                     })
                     .unwrap_or_default();
                 if steps.is_empty() {
-                    return ("set_plan needs a non-empty `steps` array".into(), true, "empty plan".into());
+                    return (
+                        "set_plan needs a non-empty `steps` array".into(),
+                        true,
+                        "empty plan".into(),
+                    );
                 }
                 *plan = steps
                     .into_iter()
@@ -1126,11 +1118,11 @@ impl TriageEngine {
                     first.state = PlanStepState::Running;
                 }
                 (sink)(ChatDelta::Plan(plan.clone()));
-                return (
+                (
                     format!("plan published: {} steps. Follow it in order.", plan.len()),
                     false,
                     format!("planned {} steps", plan.len()),
-                );
+                )
             }
             TOOL_RUN_COMMAND => {
                 let input: RunCommandInput = match serde_json::from_value(call.input.clone()) {
@@ -1219,7 +1211,7 @@ impl TriageEngine {
                             self.audit_push(AuditKind::Error {
                                 message: format!("approval channel failed: {e}"),
                             });
-                            return (format!("approval channel failed: {e}"), true, e.to_string())
+                            return (format!("approval channel failed: {e}"), true, e.to_string());
                         }
                     }
                 };
@@ -1334,8 +1326,7 @@ impl TriageEngine {
                 } else {
                     web_search::shared_query_rules()
                 };
-                match web_search::search(&input, query_rules, &routing_key).await
-                {
+                match web_search::search(&input, query_rules, &routing_key).await {
                     Ok(resp) => {
                         self.audit_push(AuditKind::WebSearchCompleted {
                             query: resp.query.clone(),
@@ -1452,7 +1443,8 @@ impl TriageEngine {
                     .after
                     .unwrap_or(MATCH_CONTEXT_DEFAULT)
                     .min(MATCH_CONTEXT_MAX);
-                let cmd = file_ops::build_match_cmd(interp, &input.path, &input.find, before, after);
+                let cmd =
+                    file_ops::build_match_cmd(interp, &input.path, &input.find, before, after);
                 let outcome = match self
                     .run_file_op(
                         cmd,
@@ -1520,10 +1512,7 @@ impl TriageEngine {
                         "io_error" => format!(
                             "match_file: io_error reading {} ({})",
                             input.path,
-                            parsed
-                                .get("message")
-                                .and_then(|m| m.as_str())
-                                .unwrap_or("")
+                            parsed.get("message").and_then(|m| m.as_str()).unwrap_or("")
                         ),
                         other => format!("match_file: remote error {other}: {payload}"),
                     };
@@ -1542,7 +1531,11 @@ impl TriageEngine {
                             .and_then(|m| m.as_array())
                             .map(|a| a.len())
                             .unwrap_or(0),
-                        if parsed.get("truncated").and_then(|v| v.as_bool()).unwrap_or(false) {
+                        if parsed
+                            .get("truncated")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                        {
                             " (remote-truncated)"
                         } else {
                             ""
@@ -1850,7 +1843,11 @@ impl TriageEngine {
                     "changed": count,
                 })
                 .to_string();
-                (redact(&result, map), false, format!("patched {}", input.path))
+                (
+                    redact(&result, map),
+                    false,
+                    format!("patched {}", input.path),
+                )
             }
             TOOL_WEB_FETCH => {
                 let input: WebFetchInput = match serde_json::from_value(call.input.clone()) {
@@ -1907,7 +1904,7 @@ impl TriageEngine {
                                 format!("web_fetch: approval channel failed: {e}"),
                                 true,
                                 e.to_string(),
-                            )
+                            );
                         }
                     }
                 };
@@ -2133,7 +2130,7 @@ mod tests {
                     TOOL_RUN_COMMAND,
                     serde_json::json!({"cmd": "ps aux --sort=-%cpu | head -n 5", "explain": "看占用", "side_effect": "无"}),
                 )]),
-                resp_final("结论".into()),
+                resp_final("结论"),
             ],
             rt.clone(),
         );
@@ -2162,7 +2159,11 @@ mod tests {
         assert_eq!(out.plan[0].text, "看 CPU 占用");
         // 一次成功调用推进一步：第一步 done，第二步 running。
         assert_eq!(out.plan[0].state, PlanStepState::Done);
-        assert_eq!(out.plan[1].state, PlanStepState::Done, "收尾时 running 也会被收干净");
+        assert_eq!(
+            out.plan[1].state,
+            PlanStepState::Done,
+            "收尾时 running 也会被收干净"
+        );
         assert_eq!(out.plan[2].state, PlanStepState::Pending);
         // 实时推送至少两帧：发布计划 + 推进一次。
         let frames = seen.lock().unwrap().len();
@@ -2178,20 +2179,32 @@ mod tests {
         // 命中：同一个（模型, 端点, 前缀）不再问模型。
         assert_eq!(cache.get(scope, "ps aux"), Some(" --sort=-%cpu".into()));
         // 换模型和换端点各自隔离。
-        assert_eq!(cache.get("other-model@https://api.openai.com/v1", "ps aux"), None);
-        assert_eq!(cache.get("gpt-4o-mini@http://localhost:11434/v1", "ps aux"), None);
+        assert_eq!(
+            cache.get("other-model@https://api.openai.com/v1", "ps aux"),
+            None
+        );
+        assert_eq!(
+            cache.get("gpt-4o-mini@http://localhost:11434/v1", "ps aux"),
+            None
+        );
         assert_eq!(cache.len(), 1);
     }
 
     #[test]
     fn completion_is_stripped_down_to_the_missing_part() {
         // 代码块围栏 + 引号都要清掉。
-        assert_eq!(clean_completion("```sh\nps aux --sort=-%cpu\n```", ""), "ps aux --sort=-%cpu");
+        assert_eq!(
+            clean_completion("```sh\nps aux --sort=-%cpu\n```", ""),
+            "ps aux --sort=-%cpu"
+        );
         assert_eq!(clean_completion("\" | head -n 10\"", ""), "| head -n 10");
         // 只取第一行。
         assert_eq!(clean_completion("df -h\nexplanation here", ""), "df -h");
         // 模型把前缀又写了一遍时去掉重复。
-        assert_eq!(clean_completion("ps aux | head -n 10", "ps aux | "), "head -n 10");
+        assert_eq!(
+            clean_completion("ps aux | head -n 10", "ps aux | "),
+            "head -n 10"
+        );
         // 空输入 → 空结果。
         assert_eq!(clean_completion("   ", ""), "");
     }
@@ -2241,7 +2254,10 @@ mod tests {
         cancel.store(true, Ordering::Relaxed);
         let err = eng.ask(&ctx(), None).await.expect_err("取消必须报错");
         assert_eq!(err.code(), "llm_cancelled");
-        assert!(rt.run_log.lock().unwrap().is_empty(), "取消后不得再执行命令");
+        assert!(
+            rt.run_log.lock().unwrap().is_empty(),
+            "取消后不得再执行命令"
+        );
     }
 
     fn ctx() -> TriageContext {
@@ -2288,7 +2304,10 @@ mod tests {
         assert_eq!(out.proposed[0].risk, RiskLevel::ReadOnly);
         assert_eq!(out.proposed[0].gate, Gate::DirectRun);
         assert_eq!(out.proposed[0].disposition, Disposition::Executed);
-        assert_eq!(rt.run_log.lock().unwrap()[0], "ps aux --sort=-%cpu | head -n 5");
+        assert_eq!(
+            rt.run_log.lock().unwrap()[0],
+            "ps aux --sort=-%cpu | head -n 5"
+        );
         assert_eq!(out.text, "CPU 被进程 1234 占满");
     }
 
@@ -2296,7 +2315,8 @@ mod tests {
     async fn mutating_command_is_fill_only_and_rejected_proposal_is_reported() {
         let rt = Arc::new(MockRuntime::default());
         // 拒绝批准
-        rt.approved.store(false, std::sync::atomic::Ordering::SeqCst);
+        rt.approved
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         let eng = engine(
             vec![
                 resp_with_tools(vec![tool_call(
@@ -2343,7 +2363,8 @@ mod tests {
     async fn auto_run_readonly_skips_approval() {
         let rt = Arc::new(MockRuntime::default());
         // approved=false，但 auto_run_readonly 应放行只读命令
-        rt.approved.store(false, std::sync::atomic::Ordering::SeqCst);
+        rt.approved
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         let mut eng = engine(
             vec![
                 resp_with_tools(vec![tool_call(
@@ -2366,9 +2387,9 @@ mod tests {
         out.audit
             .iter()
             .find_map(|e| match &e.kind {
-                AuditKind::CommandExecuted { output_redacted, .. } => {
-                    Some(output_redacted.clone())
-                }
+                AuditKind::CommandExecuted {
+                    output_redacted, ..
+                } => Some(output_redacted.clone()),
                 _ => None,
             })
             .expect("must have executed a command")
@@ -2378,7 +2399,8 @@ mod tests {
     async fn yolo_mode_auto_approves_destructive_command() {
         let rt = Arc::new(MockRuntime::default());
         // runtime 一律拒绝 —— YOLO 下引擎根本不该发起审批。
-        rt.approved.store(false, std::sync::atomic::Ordering::SeqCst);
+        rt.approved
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         let mut eng = engine(
             vec![
                 resp_with_tools(vec![tool_call(
@@ -2431,10 +2453,7 @@ mod tests {
         assert!(audited.contains('<'), "默认必须替换成占位符");
         // YOLO：原样进审计与 LLM 上下文。
         let out = run(true).ask(&ctx(), None).await.unwrap();
-        assert!(
-            audit_exec_output(&out).contains(secret),
-            "YOLO 下不得脱敏"
-        );
+        assert!(audit_exec_output(&out).contains(secret), "YOLO 下不得脱敏");
     }
 
     #[tokio::test]
@@ -2712,10 +2731,7 @@ mod tests {
     async fn monitor_trigger_prepends_automatic_notice() {
         let rt = Arc::new(MockRuntime::default());
         rt.approved.store(true, std::sync::atomic::Ordering::SeqCst);
-        let eng = engine(
-            vec![resp_final("先看 top -bn1")],
-            rt.clone(),
-        );
+        let eng = engine(vec![resp_final("先看 top -bn1")], rt.clone());
         let mut c = ctx();
         c.question = String::new();
         c.trigger = Trigger::Monitor("CPU 99% 持续 30 秒".into());
@@ -2755,10 +2771,7 @@ mod tests {
 
     /// 把一条 match_file 的远端输出包进 JSON marker（模拟远端脚本）。
     fn match_payload(json: &str) -> String {
-        format!(
-            "{m}\n{json}\n{m}\n",
-            m = crate::file_ops::JSON_MARKER
-        )
+        format!("{m}\n{json}\n{m}\n", m = crate::file_ops::JSON_MARKER)
     }
 
     #[tokio::test]
@@ -2825,7 +2838,12 @@ mod tests {
         );
         let out = eng.ask(&ctx(), None).await.unwrap();
         assert!(out.tool_log.last().unwrap().is_error);
-        assert!(out.tool_log.last().unwrap().summary.contains("remote error"));
+        assert!(out
+            .tool_log
+            .last()
+            .unwrap()
+            .summary
+            .contains("remote error"));
     }
 
     #[tokio::test]
@@ -2903,7 +2921,8 @@ mod tests {
         drop(log);
         // 四张审批卡片 + 工具痕迹。
         assert_eq!(out.proposed.len(), 4);
-        assert!(out.proposed
+        assert!(out
+            .proposed
             .iter()
             .all(|p| p.disposition == Disposition::Executed));
         assert!(!out.tool_log.last().unwrap().is_error);
@@ -3112,10 +3131,7 @@ mod tests {
     async fn load_skill_tool_only_appears_with_user_skills() {
         let rt = Arc::new(MockRuntime::default());
         let eng = engine(vec![resp_final("x")], rt.clone());
-        assert!(!eng
-            .tools()
-            .iter()
-            .any(|t| t.name == TOOL_LOAD_SKILL));
+        assert!(!eng.tools().iter().any(|t| t.name == TOOL_LOAD_SKILL));
     }
 
     // ─── web_fetch ──────────────────────────────────────────────────
@@ -3194,8 +3210,9 @@ mod tests {
         eng.cfg = cfg;
         let prompt = eng.build_system_prompt(&ctx());
         // 清单与真实可用工具一致（顺序跟随 all_tools()，read_remote_file 追加在末尾）
-        assert!(prompt
-            .contains("`run_command`, `match_file`, `web_search`, `web_fetch`, `read_remote_file`"));
+        assert!(prompt.contains(
+            "`run_command`, `match_file`, `web_search`, `web_fetch`, `read_remote_file`"
+        ));
         assert!(prompt.contains("# Available skills (catalog)"));
         assert!(prompt.contains("user-mysql"));
     }

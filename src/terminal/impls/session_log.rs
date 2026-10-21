@@ -142,7 +142,12 @@ impl TranscriptLines {
         }
     }
 
-    fn push(&mut self, ch: char, now: DateTime<Local>, emit: &mut dyn FnMut(DateTime<Local>, &str)) {
+    fn push(
+        &mut self,
+        ch: char,
+        now: DateTime<Local>,
+        emit: &mut dyn FnMut(DateTime<Local>, &str),
+    ) {
         if self.pending_cr {
             // A bare CR followed by text overwrites the line (progress bars,
             // shell prompt redraws): keep only what the screen ends up showing.
@@ -415,7 +420,8 @@ mod tests {
 
     #[test]
     fn screen_snapshot_keeps_prompt_open() {
-        let dir = std::env::temp_dir().join(format!("fengheshell-log-test-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("fengheshell-log-test-{}", uuid::Uuid::new_v4()));
         let path = {
             let mut log = SessionLogger::create(&dir, "s", "local").unwrap();
             log.write_screen_snapshot("line one\nuser@host:~$ \n\n\n");
@@ -433,7 +439,8 @@ mod tests {
 
     #[test]
     fn logger_writes_header_lines_and_footer() {
-        let dir = std::env::temp_dir().join(format!("fengheshell-log-test-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("fengheshell-log-test-{}", uuid::Uuid::new_v4()));
         let path = {
             let mut log = SessionLogger::create(&dir, "web 01", "ssh root@10.0.0.1:22").unwrap();
             log.write_output(b"\x1b[32mhello\x1b[0m\r\nworld");

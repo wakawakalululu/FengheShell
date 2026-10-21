@@ -55,7 +55,10 @@ fn exec_capture_reports_nonzero_exit() {
     ai.feed_output("ls: cannot access /nope: No such file or directory\r\n__msai_cd34:2\r\n");
     let (output, exit) = ai.take_finished_exec().unwrap();
     assert_eq!(exit, Some(2));
-    assert_eq!(output, "ls: cannot access /nope: No such file or directory\n");
+    assert_eq!(
+        output,
+        "ls: cannot access /nope: No such file or directory\n"
+    );
 }
 
 #[test]
@@ -146,10 +149,7 @@ fn the_process_audit_log_renders_for_export() {
         }
     }
     // 同一个进程里拿到的始终是同一份日志（导出与引擎写入不串味）。
-    assert!(std::ptr::eq(
-        Arc::as_ptr(&audit_log()),
-        Arc::as_ptr(&log)
-    ));
+    assert!(std::ptr::eq(Arc::as_ptr(&audit_log()), Arc::as_ptr(&log)));
     let text = log.lock().map(|g| g.to_log_string()).unwrap_or_default();
     assert!(text.contains("CMD_PROPOSED"), "{text}");
     assert!(text.contains("CMD_EXECUTED"), "{text}");

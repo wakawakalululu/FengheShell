@@ -83,10 +83,18 @@ pub(crate) fn default_sftp_tree_width() -> f32 {
 }
 
 pub(crate) fn default_sftp_visible_columns() -> Vec<String> {
-    ["name", "type", "size", "modified", "permissions", "owner", "group"]
-        .into_iter()
-        .map(str::to_string)
-        .collect()
+    [
+        "name",
+        "type",
+        "size",
+        "modified",
+        "permissions",
+        "owner",
+        "group",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect()
 }
 
 pub(crate) fn default_quick_panel_width() -> f32 {

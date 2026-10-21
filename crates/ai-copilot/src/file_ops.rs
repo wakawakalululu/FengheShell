@@ -972,10 +972,7 @@ __MSAI_JSON__\n{\"call\":\"second\"}\n__MSAI_JSON__\n";
     #[test]
     fn build_cp_cmd_with_special_chars() {
         let cmd = build_cp_cmd("/has space/it's", "/has space/it's.tmp");
-        assert_eq!(
-            cmd,
-            r"\cp -- '/has space/it'\''s' '/has space/it'\''s.tmp'"
-        );
+        assert_eq!(cmd, r"\cp -- '/has space/it'\''s' '/has space/it'\''s.tmp'");
     }
 
     #[test]

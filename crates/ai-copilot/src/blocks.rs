@@ -479,7 +479,9 @@ fn truncate_block_for_budget(b: &CommandBlock, budget: usize) -> String {
     let head = format!(
         "$ {}\n[exit {}]\n",
         b.command,
-        b.exit_code.map(|c| c.to_string()).unwrap_or_else(|| "?".into())
+        b.exit_code
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "?".into())
     );
     if head.len() >= budget {
         return head;
@@ -553,7 +555,11 @@ mod tests {
         // 回显不可靠（括号粘贴 / 长命令折行）时 OSC 697 给出精确命令。
         p.feed(&format!("{a}{b}", a = marker("A"), b = marker("B")));
         p.set_command_override("systemctl status nginx");
-        let blocks = p.feed(&format!("{c}active (running){d}", c = marker("C"), d = marker("D;0")));
+        let blocks = p.feed(&format!(
+            "{c}active (running){d}",
+            c = marker("C"),
+            d = marker("D;0")
+        ));
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].command, "systemctl status nginx");
     }

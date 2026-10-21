@@ -47,7 +47,8 @@ pub(crate) fn sanitize_edge(mut edge: DockEdgeSer) -> Option<DockEdgeSer> {
     if !valid_edge(&edge.edge) {
         return None;
     }
-    edge.slots.retain(|s| valid_kind(&s.kind) && s.ratio.is_finite() && s.ratio > 0.0);
+    edge.slots
+        .retain(|s| valid_kind(&s.kind) && s.ratio.is_finite() && s.ratio > 0.0);
     if edge.slots.len() < 2 {
         // A single-panel stack is just the legacy layout; do not store it.
         return None;
@@ -99,10 +100,7 @@ mod tests {
     #[test]
     fn serde_roundtrip_preserves_stacks() {
         let cfg = crate::config::ConfigFile {
-            dock_stacks: vec![edge(
-                "left",
-                vec![slot("sidebar", 0.7), slot("quick", 0.3)],
-            )],
+            dock_stacks: vec![edge("left", vec![slot("sidebar", 0.7), slot("quick", 0.3)])],
             ..Default::default()
         };
         let json = serde_json::to_string(&cfg).unwrap();
@@ -118,8 +116,11 @@ mod tests {
 
     #[test]
     fn sanitize_keeps_valid_edge_and_renormalises() {
-        let out = sanitize_edge(edge("right", vec![slot("sidebar", 1.0), slot("quick", 1.0)]))
-            .expect("valid two-panel stack survives");
+        let out = sanitize_edge(edge(
+            "right",
+            vec![slot("sidebar", 1.0), slot("quick", 1.0)],
+        ))
+        .expect("valid two-panel stack survives");
         assert_eq!(out.edge, "right");
         assert_eq!(out.slots.len(), 2);
         assert!((out.slots.iter().map(|s| s.ratio).sum::<f32>() - 1.0).abs() < 1e-6);
@@ -134,14 +135,21 @@ mod tests {
         .expect("survives after dropping the unknown kind");
         // ["bogus"] filtered → sidebar + quick remain, renormalised.
         assert_eq!(out.slots.len(), 2);
-        assert!(out.slots.iter().all(|s| matches!(s.kind.as_str(), "sidebar" | "quick")));
+        assert!(out
+            .slots
+            .iter()
+            .all(|s| matches!(s.kind.as_str(), "sidebar" | "quick")));
     }
 
     #[test]
     fn sanitize_deduplicates_repeated_kinds() {
         let out = sanitize_edge(edge(
             "left",
-            vec![slot("welcome", 0.5), slot("welcome", 0.2), slot("quick", 0.3)],
+            vec![
+                slot("welcome", 0.5),
+                slot("welcome", 0.2),
+                slot("quick", 0.3),
+            ],
         ))
         .expect("deduplicated stack survives");
         // First welcome survives, the later duplicate is dropped.
@@ -153,10 +161,16 @@ mod tests {
     #[test]
     fn sanitize_rejects_single_panel_or_bad_edge() {
         assert!(sanitize_edge(edge("left", vec![slot("sidebar", 1.0)])).is_none());
-        assert!(sanitize_edge(edge("middle", vec![slot("sidebar", 0.5), slot("quick", 0.5)])).is_none());
+        assert!(sanitize_edge(edge(
+            "middle",
+            vec![slot("sidebar", 0.5), slot("quick", 0.5)]
+        ))
+        .is_none());
         assert!(sanitize_edge(edge("left", Vec::new())).is_none());
         // Zero/negative ratios leave fewer than 2 valid panels → rejected.
-        assert!(sanitize_edge(edge("left", vec![slot("sidebar", 0.0), slot("quick", 0.0)])).is_none());
+        assert!(
+            sanitize_edge(edge("left", vec![slot("sidebar", 0.0), slot("quick", 0.0)])).is_none()
+        );
     }
 
     #[test]

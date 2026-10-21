@@ -334,38 +334,6 @@ fn default_true() -> bool {
     true
 }
 
-#[cfg(test)]
-mod session_log_mode_tests {
-    use super::*;
-
-    #[test]
-    fn resolves_against_global_default() {
-        assert!(SessionLogMode::Default.resolve(true));
-        assert!(!SessionLogMode::Default.resolve(false));
-        assert!(SessionLogMode::On.resolve(false));
-        assert!(!SessionLogMode::Off.resolve(true));
-    }
-
-    #[test]
-    fn missing_field_deserializes_as_default() {
-        let mut value = serde_json::to_value(Session::new_empty()).unwrap();
-        value.as_object_mut().unwrap().remove("session_log");
-        let session: Session = serde_json::from_value(value).unwrap();
-        assert_eq!(session.session_log, SessionLogMode::Default);
-    }
-
-    #[test]
-    fn round_trips_through_strings() {
-        for mode in [
-            SessionLogMode::Default,
-            SessionLogMode::On,
-            SessionLogMode::Off,
-        ] {
-            assert_eq!(SessionLogMode::from_str(mode.as_str()), mode);
-        }
-    }
-}
-
 impl Session {
     pub fn new_empty() -> Self {
         Self {
@@ -408,6 +376,38 @@ impl Session {
             sftp_mode: String::new(),
             sftp_command: String::new(),
             note: String::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod session_log_mode_tests {
+    use super::*;
+
+    #[test]
+    fn resolves_against_global_default() {
+        assert!(SessionLogMode::Default.resolve(true));
+        assert!(!SessionLogMode::Default.resolve(false));
+        assert!(SessionLogMode::On.resolve(false));
+        assert!(!SessionLogMode::Off.resolve(true));
+    }
+
+    #[test]
+    fn missing_field_deserializes_as_default() {
+        let mut value = serde_json::to_value(Session::new_empty()).unwrap();
+        value.as_object_mut().unwrap().remove("session_log");
+        let session: Session = serde_json::from_value(value).unwrap();
+        assert_eq!(session.session_log, SessionLogMode::Default);
+    }
+
+    #[test]
+    fn round_trips_through_strings() {
+        for mode in [
+            SessionLogMode::Default,
+            SessionLogMode::On,
+            SessionLogMode::Off,
+        ] {
+            assert_eq!(SessionLogMode::from_str(mode.as_str()), mode);
         }
     }
 }

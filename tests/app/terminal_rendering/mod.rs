@@ -134,8 +134,15 @@ fn enabling_session_log_mid_session_seeds_screen_and_keeps_prompt_spacing() {
 
     let text = std::fs::read_to_string(&path).unwrap();
     assert!(text.lines().any(|l| l.ends_with("] line one")), "{text}");
-    assert!(text.lines().any(|l| l.ends_with("] user@host:~$ ls")), "{text}");
-    assert!(text.lines().last().unwrap().starts_with("=== session log closed"));
+    assert!(
+        text.lines().any(|l| l.ends_with("] user@host:~$ ls")),
+        "{text}"
+    );
+    assert!(text
+        .lines()
+        .last()
+        .unwrap()
+        .starts_with("=== session log closed"));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -167,6 +174,9 @@ fn leaving_alternate_screen_after_shrinking_keeps_cursor_in_bounds() {
         parser.process(b"\x1b[?1049l");
         parser.process("x\u{4e2d}".as_bytes());
         let (row, col) = parser.screen().cursor_position();
-        assert!(row < rows && col <= cols, "cursor {row},{col} outside {rows}x{cols}");
+        assert!(
+            row < rows && col <= cols,
+            "cursor {row},{col} outside {rows}x{cols}"
+        );
     }
 }

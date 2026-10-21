@@ -285,7 +285,10 @@ fn http_client() -> Result<&'static reqwest::Client, WebSearchError> {
             reqwest::Client::builder()
                 .connect_timeout(CONNECT_TIMEOUT)
                 .timeout(REQUEST_TIMEOUT)
-                .user_agent(concat!("fengheshell-ai-copilot/", env!("CARGO_PKG_VERSION")))
+                .user_agent(concat!(
+                    "fengheshell-ai-copilot/",
+                    env!("CARGO_PKG_VERSION")
+                ))
                 .build()
                 .map_err(|_| ())
         })

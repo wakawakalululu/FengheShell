@@ -408,16 +408,30 @@ fn session_cancel_shortcuts_work_on_open_and_in_focused_inputs() {
 fn saving_valid_dialog_is_independent_of_connection_test_result() {
     std::thread::spawn(|| {
         let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-        slint::platform::set_platform(Box::new(Backend { window: window.clone(), clipboard: Rc::default() })).unwrap();
+        slint::platform::set_platform(Box::new(Backend {
+            window: window.clone(),
+            clipboard: Rc::default(),
+        }))
+        .unwrap();
         let ui = DialogFixture::new().unwrap();
         ui.show().unwrap();
         window.set_size(slint::PhysicalSize::new(700, 1100));
-        for (i, status) in ["Testing...", "Connection failed: fixture failure", "Connection timed out", "Connection OK"].iter().enumerate() {
+        for (i, status) in [
+            "Testing...",
+            "Connection failed: fixture failure",
+            "Connection timed out",
+            "Connection OK",
+        ]
+        .iter()
+        .enumerate()
+        {
             ui.set_test_status((*status).into());
             slint::platform::update_timers_and_animations();
             let mut pixels = vec![Rgb8Pixel::default(); 700 * 1100];
             window.request_redraw();
-            window.draw_if_needed(|renderer| { renderer.render(&mut pixels, 700); });
+            window.draw_if_needed(|renderer| {
+                renderer.render(&mut pixels, 700);
+            });
             // The Linux fixture's rendered footer; other platforms have different font metrics.
             #[cfg(target_os = "linux")]
             {
@@ -437,14 +451,20 @@ fn saving_valid_dialog_is_independent_of_connection_test_result() {
         ui.set_open(false);
         slint::platform::update_timers_and_animations();
         assert_eq!(ui.get_closed_count(), 1);
-    }).join().unwrap();
+    })
+    .join()
+    .unwrap();
 }
 
 #[test]
 fn editing_connection_fields_invalidates_the_test_snapshot() {
     std::thread::spawn(|| {
         let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-        slint::platform::set_platform(Box::new(Backend { window, clipboard: Rc::default() })).unwrap();
+        slint::platform::set_platform(Box::new(Backend {
+            window,
+            clipboard: Rc::default(),
+        }))
+        .unwrap();
         let ui = DialogFixture::new().unwrap();
         slint::platform::update_timers_and_animations();
         let mut changes = ui.get_changed_count();
@@ -460,5 +480,7 @@ fn editing_connection_fields_invalidates_the_test_snapshot() {
             assert!(ui.get_changed_count() > changes);
             changes = ui.get_changed_count();
         }
-    }).join().unwrap();
+    })
+    .join()
+    .unwrap();
 }

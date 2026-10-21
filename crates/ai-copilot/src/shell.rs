@@ -246,7 +246,7 @@ impl ShellKind {
         // (`/bin/bash`), Windows-style (`C:\Windows\System32\cmd.exe`),
         // or just a bare name. `.exe` suffix is optional.
         let base = path
-            .rsplit(|c| c == '/' || c == '\\')
+            .rsplit(['/', '\\'])
             .next()
             .unwrap_or(path)
             .to_ascii_lowercase();

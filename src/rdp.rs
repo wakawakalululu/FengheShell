@@ -224,7 +224,10 @@ fn start_client(account: &Account<'_>, session_id: &str) -> Result<String, Strin
     Command::new("mstsc").arg(&path).spawn().map_err(|err| {
         format!(
             "{} mstsc: {err}",
-            t("无法启动系统远程桌面", "cannot start the system remote desktop client")
+            t(
+                "无法启动系统远程桌面",
+                "cannot start the system remote desktop client"
+            )
         )
     })?;
     Ok(format!("{}:{} (mstsc)", account.host, account.port))
@@ -515,7 +518,7 @@ fn early_exit(child: &mut std::process::Child) -> Option<String> {
         }
     }
     let mut stderr = String::new();
-    if let Some(mut pipe) = child.stderr.take() {
+    if let Some(pipe) = child.stderr.take() {
         use std::io::Read as _;
         let _ = pipe.take(4096).read_to_string(&mut stderr);
     }
@@ -611,10 +614,7 @@ mod tests {
             split_user_domain("alice"),
             ("alice".to_string(), String::new())
         );
-        assert_eq!(
-            split_user_domain(""),
-            (String::new(), String::new())
-        );
+        assert_eq!(split_user_domain(""), (String::new(), String::new()));
     }
 
     #[test]
@@ -733,9 +733,7 @@ mod tests {
         };
         assert_ne!(ok, 0, "the blob must be decryptable by this user");
         // SAFETY: the call succeeded, so the buffer is readable.
-        let plain = unsafe {
-            std::slice::from_raw_parts(output.pb_data, output.cb_data as usize)
-        };
+        let plain = unsafe { std::slice::from_raw_parts(output.pb_data, output.cb_data as usize) };
         let wide: Vec<u16> = plain
             .chunks_exact(2)
             .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
@@ -752,4 +750,3 @@ mod tests {
         );
     }
 }
-

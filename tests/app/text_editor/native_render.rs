@@ -199,7 +199,13 @@ fn editor_app_window_renders_highlighted_document() {
     }).join().unwrap();
 }
 
-fn editor_doc(id: &str, owner: &str, path: &str, content: &str, dirty: bool) -> super::super::EditorDoc {
+fn editor_doc(
+    id: &str,
+    owner: &str,
+    path: &str,
+    content: &str,
+    dirty: bool,
+) -> super::super::EditorDoc {
     super::super::EditorDoc {
         id: id.into(),
         owner: owner.into(),
@@ -252,19 +258,36 @@ fn editor_tab_renders_in_a_split_pane() {
             }
         };
         ui.set_panes(ModelRc::from(std::rc::Rc::new(VecModel::from(vec![
-            pane(0, 0.0, 500.0, vec![tab("welcome", "New tab", "welcome", false)], "welcome"),
+            pane(
+                0,
+                0.0,
+                500.0,
+                vec![tab("welcome", "New tab", "welcome", false)],
+                "welcome",
+            ),
             // Unsaved edits: the tab dot uses the accent colour.
-            pane(1, 504.0, 600.0, vec![tab("editor-1", "example.rs", "editor", false)], "editor-1"),
+            pane(
+                1,
+                504.0,
+                600.0,
+                vec![tab("editor-1", "example.rs", "editor", false)],
+                "editor-1",
+            ),
         ]))));
         ui.show().unwrap();
         window.set_size(slint::PhysicalSize::new(1400, 800));
         let mut pixels = vec![Rgb8Pixel::default(); 1400 * 800];
         window.request_redraw();
-        assert!(window.draw_if_needed(|renderer| { renderer.render(&mut pixels, 1400); }));
+        assert!(window.draw_if_needed(|renderer| {
+            renderer.render(&mut pixels, 1400);
+        }));
         let bytes: Vec<u8> = pixels.iter().flat_map(|p| [p.r, p.g, p.b]).collect();
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/editor-tab-qa.png");
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/editor-tab-qa.png");
         image::save_buffer(path, &bytes, 1400, 800, image::ColorType::Rgb8).unwrap();
-    }).join().unwrap();
+    })
+    .join()
+    .unwrap();
 }
 
 #[test]
@@ -282,11 +305,15 @@ fn editor_tab_close_asks_when_dirty_and_orphans_on_terminal_close() {
         ui.set_editor_docs(ModelRc::from(docs.clone()));
 
         // Unsaved edits defer the close to the confirmation dialog.
-        assert!(super::super::editor_tabs::close_needs_confirm(&ui, "editor-1"));
+        assert!(super::super::editor_tabs::close_needs_confirm(
+            &ui, "editor-1"
+        ));
         assert!(ui.get_editor_discard_confirm_open());
         assert_eq!(ui.get_editor_discard_id().as_str(), "editor-1");
         // A clean document and a terminal tab close straight away.
-        assert!(!super::super::editor_tabs::close_needs_confirm(&ui, "editor-2"));
+        assert!(!super::super::editor_tabs::close_needs_confirm(
+            &ui, "editor-2"
+        ));
         assert!(!super::super::editor_tabs::close_needs_confirm(&ui, "t1"));
 
         // Closing an editor tab drops its document only.
@@ -297,5 +324,7 @@ fn editor_tab_close_asks_when_dirty_and_orphans_on_terminal_close() {
         let rows: Vec<_> = docs.iter().collect();
         assert!(rows.iter().find(|d| d.id == "editor-1").unwrap().orphaned);
         assert!(!rows.iter().find(|d| d.id == "editor-3").unwrap().orphaned);
-    }).join().unwrap();
+    })
+    .join()
+    .unwrap();
 }

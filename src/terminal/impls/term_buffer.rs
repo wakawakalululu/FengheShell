@@ -69,7 +69,7 @@ impl TermBuffer {
             .unwrap_or_default();
         let pad = (cursor_col as usize).saturating_sub(current.chars().count());
         text.push_str(&current);
-        text.extend(std::iter::repeat(' ').take(pad));
+        text.extend(std::iter::repeat_n(' ', pad));
         text
     }
 
@@ -444,7 +444,7 @@ impl TermBuffer {
                         self.csi_pending.push(byte);
                         self.csi_state = CsiState::Designate(byte);
                     } else {
-                        display.extend(self.csi_pending.drain(..));
+                        display.append(&mut self.csi_pending);
                         if byte == 0x1b {
                             self.csi_pending.push(byte);
                         } else {
@@ -457,7 +457,7 @@ impl TermBuffer {
                     if byte == 0x1b {
                         // Malformed: a new escape interrupts the designator.
                         // Pass the buffered bytes through and start over.
-                        display.extend(self.csi_pending.drain(..));
+                        display.append(&mut self.csi_pending);
                         self.csi_pending.push(byte);
                         self.csi_state = CsiState::Esc;
                     } else {
@@ -465,21 +465,21 @@ impl TermBuffer {
                         if self.vt100_drawing {
                             self.charset.designate(set, byte);
                         }
-                        display.extend(self.csi_pending.drain(..));
+                        display.append(&mut self.csi_pending);
                         self.csi_state = CsiState::Normal;
                     }
                 }
                 CsiState::Osc => {
                     self.csi_pending.push(byte);
                     if byte == 0x07 {
-                        display.extend(self.csi_pending.drain(..));
+                        display.append(&mut self.csi_pending);
                         self.csi_state = CsiState::Normal;
                     } else if byte == 0x1b {
                         self.csi_state = CsiState::OscEsc;
                     } else if self.csi_pending.len() > 4096 {
                         // Malformed/unbounded OSC: stop buffering, same escape
                         // hatch as the CSI arm below.
-                        display.extend(self.csi_pending.drain(..));
+                        display.append(&mut self.csi_pending);
                         self.csi_state = CsiState::Normal;
                     }
                 }
@@ -487,7 +487,7 @@ impl TermBuffer {
                     self.csi_pending.push(byte);
                     if byte == b'\\' {
                         // ST terminator.
-                        display.extend(self.csi_pending.drain(..));
+                        display.append(&mut self.csi_pending);
                         self.csi_state = CsiState::Normal;
                     } else {
                         self.csi_state = CsiState::Osc;
@@ -524,14 +524,14 @@ impl TermBuffer {
                                     *final_byte = b'H';
                                 }
                             }
-                            display.extend(self.csi_pending.drain(..));
+                            display.append(&mut self.csi_pending);
                         }
                         self.csi_pending.clear();
                         self.csi_state = CsiState::Normal;
                     } else if self.csi_pending.len() > 64 {
                         // Malformed/unbounded CSI: stop buffering and let vt100
                         // handle the bytes as ordinary terminal input.
-                        display.extend(self.csi_pending.drain(..));
+                        display.append(&mut self.csi_pending);
                         self.csi_state = CsiState::Normal;
                     }
                 }
@@ -808,8 +808,7 @@ impl TermBuffer {
         self.displayed_text = displayed;
         BuiltScreen {
             spans,
-            cursor_row: (self.parser.screen().cursor_position().0 as i32
-                + self.view_offset as i32)
+            cursor_row: (self.parser.screen().cursor_position().0 as i32 + self.view_offset as i32)
                 .min(self.parser.screen().size().0 as i32),
             cursor_col: self.parser.screen().cursor_position().1 as i32,
             rows_used: win as i32,

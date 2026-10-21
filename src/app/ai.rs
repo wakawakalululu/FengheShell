@@ -14,7 +14,9 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
-use ai_copilot::blocks::{strip_ansi, BlockParser, CommandBlock, ContextWindow, DEFAULT_CONTEXT_BYTES};
+use ai_copilot::blocks::{
+    strip_ansi, BlockParser, CommandBlock, ContextWindow, DEFAULT_CONTEXT_BYTES,
+};
 use ai_copilot::llm::ChatDelta;
 use ai_copilot::risk::{Gate, RiskLevel};
 use ai_copilot::shell::ShellKind;
@@ -166,7 +168,10 @@ impl TabAi {
     /// 最近若干条命令块（最早 → 最新）。
     pub(super) fn context_blocks(&self, limit: usize) -> Vec<CommandBlock> {
         let all = self.blocks.blocks();
-        all.iter().skip(all.len().saturating_sub(limit)).cloned().collect()
+        all.iter()
+            .skip(all.len().saturating_sub(limit))
+            .cloned()
+            .collect()
     }
 
     /// 登记一次等待用户裁决的卡片。
@@ -270,10 +275,15 @@ fn strip_echo(out: String, cmd: &str) -> String {
     let Some(pos) = out.find(cmd) else {
         return out;
     };
-    if !out[..pos].chars().all(|c| matches!(c, '\r' | '\n' | ' ' | '\0')) {
+    if !out[..pos]
+        .chars()
+        .all(|c| matches!(c, '\r' | '\n' | ' ' | '\0'))
+    {
         return out;
     }
-    out[pos + cmd.len()..].trim_start_matches(['\r', '\n']).to_string()
+    out[pos + cmd.len()..]
+        .trim_start_matches(['\r', '\n'])
+        .to_string()
 }
 
 // ─── 抽屉内容的 Slint 镜像 ────────────────────────────────────────
@@ -380,7 +390,6 @@ pub(super) fn message_card(p: &ProposedCommand) -> AiMessage {
     }
 }
 
-
 /// 计划清单的一行。id 稳定（plan-<index>），所以引擎推送新快照时是原地更新，
 /// 而不是越堆越长。
 fn message_plan_step(index: usize, step: &ai_copilot::triage::PlanStep) -> AiMessage {
@@ -397,17 +406,13 @@ fn message_plan_step(index: usize, step: &ai_copilot::triage::PlanStep) -> AiMes
 fn sync_plan_rows(rows: &mut Vec<AiMessage>, plan: &[ai_copilot::triage::PlanStep]) {
     for (index, step) in plan.iter().enumerate() {
         let row = message_plan_step(index, step);
-        if let Some(existing) = rows
-            .iter_mut()
-            .find(|m| m.card_id == row.card_id)
-        {
+        if let Some(existing) = rows.iter_mut().find(|m| m.card_id == row.card_id) {
             *existing = row;
         } else {
             rows.push(row);
         }
     }
 }
-
 
 /// 补全缓存是进程级的：所有标签/窗口共用一份，命中就不再打模型。
 pub(super) fn completion_cache() -> Arc<ai_copilot::completion::CompletionCache> {
@@ -451,17 +456,15 @@ pub(super) fn completion_is_current(ai: &AiTabHandle, seq: u64) -> bool {
 }
 
 /// 写回补全结果（空串表示清空）。
-pub(super) fn set_completion(
-    weak: &slint::Weak<AppWindow>,
-    tab_id: &str,
-    text: &str,
-) {
+pub(super) fn set_completion(weak: &slint::Weak<AppWindow>, tab_id: &str, text: &str) {
     let value = text.to_string();
     let weak = weak.clone();
     let tab_id = tab_id.to_string();
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(win) = weak.upgrade() {
-            set_terminal_row(&win, &tab_id, |row| row.ai_completion = value.clone().into());
+            set_terminal_row(&win, &tab_id, |row| {
+                row.ai_completion = value.clone().into()
+            });
         }
     });
 }
@@ -503,11 +506,7 @@ pub(super) fn push_notice(
     with_messages(ai, weak, tab_id, None, |v| v.push(msg));
 }
 
-pub(super) fn clear_conversation(
-    ai: &AiTabHandle,
-    weak: &slint::Weak<AppWindow>,
-    tab_id: &str,
-) {
+pub(super) fn clear_conversation(ai: &AiTabHandle, weak: &slint::Weak<AppWindow>, tab_id: &str) {
     let rows = ai
         .lock()
         .map(|mut g| {
@@ -595,9 +594,10 @@ impl UiRuntime {
     fn send_line(&self, line: &str) -> AppResult<()> {
         let mut bytes = line.as_bytes().to_vec();
         bytes.push(b'\n');
-        let raw = self.raw.as_ref().ok_or_else(|| {
-            AppError::pty("no_live_terminal", serde_json::json!({}))
-        })?;
+        let raw = self
+            .raw
+            .as_ref()
+            .ok_or_else(|| AppError::pty("no_live_terminal", serde_json::json!({})))?;
         raw.send(SessionCommand::RawInput(bytes))
             .map_err(|_| AppError::pty("session_channel_closed", serde_json::json!({})))
     }
@@ -663,9 +663,13 @@ impl ToolRuntime for UiRuntime {
             guard.set_approval(p.id.clone(), tx);
         }
         let card = message_card(p);
-        with_messages(&self.ai, &self.weak, &self.tab_id, Some(self.generation), |v| {
-            upsert_card(v, card)
-        });
+        with_messages(
+            &self.ai,
+            &self.weak,
+            &self.tab_id,
+            Some(self.generation),
+            |v| upsert_card(v, card),
+        );
         match tokio::time::timeout(APPROVAL_TIMEOUT, rx).await {
             Ok(Ok(ok)) => Ok(ok),
             // 通道关闭（抽屉/会话已关）与超时的处置一致：按拒绝处理，
@@ -681,14 +685,16 @@ impl ToolRuntime for UiRuntime {
             .timeout_s
             .map(|t| t.clamp(1, 300) as u64)
             .unwrap_or(EXEC_TIMEOUT.as_secs());
-        self.run_with_sentinel(&p.cmd, Duration::from_secs(secs)).await
+        self.run_with_sentinel(&p.cmd, Duration::from_secs(secs))
+            .await
     }
 
     /// file_ops 的远端能力探测（python3 / perl / diff）：不弹卡片，但仍然写在
     /// 用户可见的 PTY 里，与 rssh 的 internal_command 一致。等待上限由调用方
     /// （引擎按探测命令的性质给定）传入，宿不再私自加码。
     async fn execute_internal(&self, cmd: &str, timeout_s: u64) -> AppResult<CommandOutcome> {
-        self.run_with_sentinel(cmd, Duration::from_secs(timeout_s)).await
+        self.run_with_sentinel(cmd, Duration::from_secs(timeout_s))
+            .await
     }
 
     async fn read_remote_file(&self, path: &str, max_bytes: usize) -> AppResult<String> {
@@ -768,10 +774,7 @@ pub(super) fn spawn_ask(runtime: &tokio::runtime::Handle, params: AskParams) {
         stream_index = v.len() - 1;
     });
 
-    let generation = ai
-        .lock()
-        .map(|g| g.generation())
-        .unwrap_or_default();
+    let generation = ai.lock().map(|g| g.generation()).unwrap_or_default();
     // 审计日志的目标标识要在 session 移交给 UiRuntime 之前取（本地标签没有会话）。
     let audit_target = session.as_ref().map(|s| format!("ssh:{}", s.name));
     let cancel = ai
@@ -794,13 +797,7 @@ pub(super) fn spawn_ask(runtime: &tokio::runtime::Handle, params: AskParams) {
     {
         Ok(e) => e,
         Err(e) => {
-            push_notice(
-                &ai,
-                &weak,
-                &tab_id,
-                ROLE_ERROR,
-                &format!("{e}"),
-            );
+            push_notice(&ai, &weak, &tab_id, ROLE_ERROR, &format!("{e}"));
             return;
         }
     };

@@ -6,18 +6,20 @@
 //!   * Manage the tab list + per-tab `SessionHandle` map.
 //!   * Route Slint callbacks to the right domain module.
 mod agents;
+mod ai;
+mod ai_callbacks;
 mod auth_dialogs;
 mod aux_windows;
 pub(crate) mod core;
 mod dock_stacks;
 mod editor_host;
+#[path = "app/editor_syntax.rs"]
+mod editor_syntax;
 mod editor_tabs;
 mod file_drop;
 mod fonts;
 mod helpers;
 mod hit_test;
-#[path = "app/editor_syntax.rs"]
-mod editor_syntax;
 #[cfg(windows)]
 mod jump_list;
 mod key_input;
@@ -27,12 +29,10 @@ mod open_window;
 mod panes;
 mod port_forward;
 mod quick_commands;
-mod ai;
-mod ai_callbacks;
 mod resource_ui;
 mod session_callbacks;
-mod session_event;
 mod session_editor;
+mod session_event;
 mod session_models;
 mod session_runtime;
 mod session_trigger;
@@ -46,12 +46,14 @@ mod tab_transfer;
 mod term_output;
 mod terminal_ui;
 mod tray;
-mod update;
 mod tunnel_callbacks;
+mod update;
 mod webdav;
 mod window;
 mod window_events;
 
+use self::ai::*;
+use self::ai_callbacks::*;
 use self::auth_dialogs::*;
 use self::aux_windows::*;
 use self::dock_stacks::*;
@@ -67,8 +69,6 @@ use self::open_window::*;
 use self::panes::*;
 use self::port_forward::*;
 use self::quick_commands::*;
-use self::ai::*;
-use self::ai_callbacks::*;
 use self::resource_ui::*;
 use self::session_callbacks::*;
 use self::session_event::*;
@@ -91,7 +91,7 @@ use self::window_events::*;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
 #[path = "../tests/app/terminal_ingest/mod.rs"]

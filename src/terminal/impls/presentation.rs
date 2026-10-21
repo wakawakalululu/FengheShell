@@ -193,7 +193,7 @@ pub(crate) fn log_level_marker(text: &str, max_chars: usize) -> Option<(usize, u
                 continue;
             }
             let candidate = (start, start + word.len(), colour);
-            if best.map_or(true, |current| start < current.0) {
+            if best.is_none_or(|current| start < current.0) {
                 best = Some(candidate);
             }
             break;
@@ -291,7 +291,7 @@ fn devops_marker(text: &str, max_chars: usize) -> Option<(usize, usize, u8)> {
                 continue;
             }
             let candidate = (start, start + word.len(), colour);
-            if best.map_or(true, |current| start < current.0) {
+            if best.is_none_or(|current| start < current.0) {
                 best = Some(candidate);
             }
             break;
@@ -344,8 +344,8 @@ fn ascii_word_boundary(bytes: &[u8], start: usize, end: usize) -> bool {
     let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
     bytes
         .get(start.wrapping_sub(1))
-        .map_or(true, |b| !is_word(*b))
-        && bytes.get(end).map_or(true, |b| !is_word(*b))
+        .is_none_or(|b| !is_word(*b))
+        && bytes.get(end).is_none_or(|b| !is_word(*b))
 }
 
 thread_local! {
@@ -425,8 +425,8 @@ fn render_term_span_with(
         TermSpan {
             cjk: !emoji && font.is_empty() && contains_cjk(&text),
             text,
-            fg: fg.clone(),
-            bg: bg.clone(),
+            fg,
+            bg,
             bold: span.bold,
             underline: span.underline,
             row,
@@ -483,7 +483,11 @@ fn render_term_span_with(
             // A cluster vt100 spread over more than two cells (👍🏽 is 2 + 2)
             // is drawn at normal emoji size; the rest of its columns stay
             // reserved as blanks in the run's background.
-            let image_cells = if emoji_image.is_some() { cells.min(2) } else { cells };
+            let image_cells = if emoji_image.is_some() {
+                cells.min(2)
+            } else {
+                cells
+            };
             result.push(make(text, col, image_cells, font, emoji_image));
             plain_col = col + image_cells;
             if image_cells < cells {
@@ -570,7 +574,10 @@ mod color_emoji_tests {
         // vt100 stores ❤️ (U+2764 U+FE0F) in a single cell, so "B" is in the
         // next column, not two columns later.
         let spans = render_term_span(&run("A❤\u{fe0f}B", 3), 0, true);
-        let b = spans.iter().find(|s| s.text.as_str().ends_with('B')).unwrap();
+        let b = spans
+            .iter()
+            .find(|s| s.text.as_str().ends_with('B'))
+            .unwrap();
         assert_eq!(b.col + b.cells, 4 + 3);
         let heart = spans.iter().find(|s| s.emoji).unwrap();
         assert_eq!((heart.col, heart.cells), (5, 1));

@@ -1,7 +1,8 @@
 use super::*;
 
 fn staged_directory() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("fengheshell-update-test-{}", uuid::Uuid::new_v4()));
+    let dir =
+        std::env::temp_dir().join(format!("fengheshell-update-test-{}", uuid::Uuid::new_v4()));
     fs::create_dir(&dir).unwrap();
     fs::write(dir.join("lease"), b"").unwrap();
     fs::write(dir.join("installer.msi"), b"fixture").unwrap();

@@ -5,7 +5,8 @@ struct TempDir(PathBuf);
 
 impl TempDir {
     fn new() -> Self {
-        let dir = std::env::temp_dir().join(format!("fengheshell-inplace-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("fengheshell-inplace-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         Self(dir)
     }
@@ -34,7 +35,10 @@ fn classifies_portable_and_tarball_builds_in_writable_folders() {
         classify("windows", "x86_64", &exe, None, false),
         Method::InPlace(Target::WindowsPortable { exe: exe.clone() })
     );
-    assert_eq!(classify("windows", "aarch64", &exe, None, false), Method::Manual);
+    assert_eq!(
+        classify("windows", "aarch64", &exe, None, false),
+        Method::Manual
+    );
     let exe = dir.0.join("fengheshell");
     assert_eq!(
         classify("linux", "aarch64", &exe, None, false),
@@ -53,17 +57,38 @@ fn classifies_appimage_and_package_manager_installs() {
         Method::InPlace(Target::AppImage { file: file.clone() })
     );
     assert_eq!(
-        classify("linux", "x86_64", Path::new("/usr/bin/fengheshell"), None, false),
+        classify(
+            "linux",
+            "x86_64",
+            Path::new("/usr/bin/fengheshell"),
+            None,
+            false
+        ),
         Method::PackageManager
     );
     assert_eq!(
-        classify("linux", "x86_64", Path::new("/app/bin/fengheshell"), None, false),
+        classify(
+            "linux",
+            "x86_64",
+            Path::new("/app/bin/fengheshell"),
+            None,
+            false
+        ),
         Method::PackageManager
     );
-    // install-linux.sh's root-owned copy is not a package; it needs the release page.
-    assert_eq!(
-        classify("linux", "x86_64", Path::new("/usr/local/bin/fengheshell"), None, false),
-        Method::Manual
+    // install-linux.sh's root-owned copy is not a package. Whether it can be
+    // updated in place depends on the folder's writability (the classifier
+    // probes it, and CI runners can write /usr/local/bin), so assert the
+    // deterministic contract only: never a package-manager install.
+    assert_ne!(
+        classify(
+            "linux",
+            "x86_64",
+            Path::new("/usr/local/bin/fengheshell"),
+            None,
+            false
+        ),
+        Method::PackageManager
     );
     assert_eq!(
         classify("linux", "x86_64", &dir.0.join("fengheshell"), None, true),
@@ -71,8 +96,16 @@ fn classifies_appimage_and_package_manager_installs() {
     );
     // A stale $APPIMAGE that no longer exists falls back to the executable.
     assert_eq!(
-        classify("linux", "x86_64", &dir.0.join("fengheshell"), Some(dir.0.join("gone")), false),
-        Method::InPlace(Target::LinuxTarball { exe: dir.0.join("fengheshell") })
+        classify(
+            "linux",
+            "x86_64",
+            &dir.0.join("fengheshell"),
+            Some(dir.0.join("gone")),
+            false
+        ),
+        Method::InPlace(Target::LinuxTarball {
+            exe: dir.0.join("fengheshell")
+        })
     );
 }
 
@@ -95,8 +128,14 @@ fn classifies_mac_bundles_only_with_the_bundle_layout() {
 #[test]
 fn unwritable_or_unknown_locations_need_the_release_page() {
     let missing = Path::new("/definitely/not/here/fengheshell");
-    assert_eq!(classify("linux", "x86_64", missing, None, false), Method::Manual);
-    assert_eq!(classify("freebsd", "x86_64", missing, None, false), Method::Manual);
+    assert_eq!(
+        classify("linux", "x86_64", missing, None, false),
+        Method::Manual
+    );
+    assert_eq!(
+        classify("freebsd", "x86_64", missing, None, false),
+        Method::Manual
+    );
 }
 
 #[test]
@@ -104,11 +143,21 @@ fn asset_names_match_the_release_workflow() {
     let exe = PathBuf::from("fengheshell");
     let tarball = Target::LinuxTarball { exe: exe.clone() };
     assert_eq!(
-        asset_name(&Target::WindowsPortable { exe: exe.clone() }, "v0.7.8", "x86_64", None),
+        asset_name(
+            &Target::WindowsPortable { exe: exe.clone() },
+            "v0.7.8",
+            "x86_64",
+            None
+        ),
         "fengheshell-v0.7.8-windows-x86_64.zip"
     );
     assert_eq!(
-        asset_name(&Target::AppImage { file: exe.clone() }, "v0.7.8", "x86_64", None),
+        asset_name(
+            &Target::AppImage { file: exe.clone() },
+            "v0.7.8",
+            "x86_64",
+            None
+        ),
         "fengheshell-v0.7.8-linux-x86_64.AppImage"
     );
     assert_eq!(
@@ -131,15 +180,29 @@ fn tarball(path: &Path) {
     let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::fast());
     let mut builder = tar::Builder::new(encoder);
     for (name, text, mode) in [
-        ("fengheshell-v9.9.9-linux-x86_64/fengheshell", "new binary", 0o755),
-        ("fengheshell-v9.9.9-linux-x86_64/README.md", "new readme", 0o644),
-        ("fengheshell-v9.9.9-linux-x86_64/docs/REMOTE_MCP.md", "new docs", 0o644),
+        (
+            "fengheshell-v9.9.9-linux-x86_64/fengheshell",
+            "new binary",
+            0o755,
+        ),
+        (
+            "fengheshell-v9.9.9-linux-x86_64/README.md",
+            "new readme",
+            0o644,
+        ),
+        (
+            "fengheshell-v9.9.9-linux-x86_64/docs/REMOTE_MCP.md",
+            "new docs",
+            0o644,
+        ),
     ] {
         let mut header = tar::Header::new_gnu();
         header.set_size(text.len() as u64);
         header.set_mode(mode);
         header.set_cksum();
-        builder.append_data(&mut header, name, text.as_bytes()).unwrap();
+        builder
+            .append_data(&mut header, name, text.as_bytes())
+            .unwrap();
     }
     builder.into_inner().unwrap().finish().unwrap();
 }
@@ -176,7 +239,10 @@ fn tarball_update_replaces_program_files_and_keeps_user_data() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        assert_eq!(fs::metadata(&exe).unwrap().permissions().mode() & 0o111, 0o111);
+        assert_eq!(
+            fs::metadata(&exe).unwrap().permissions().mode() & 0o111,
+            0o111
+        );
     }
     // The finished staging folder is marked and removed by the next start.
     assert!(work.join(DONE).is_file());
@@ -267,7 +333,10 @@ fn a_failed_swap_restores_the_previous_executable() {
     assert_eq!(read(&exe), "old binary");
     assert!(!old_exe_path(&exe).exists());
     drop(prepared);
-    assert!(!work.exists(), "an abandoned update removes its staging folder");
+    assert!(
+        !work.exists(),
+        "an abandoned update removes its staging folder"
+    );
     assert!(!dir.0.join(STAGING).exists());
 }
 
@@ -276,7 +345,9 @@ fn mac_bundle_swap_keeps_the_old_bundle_until_cleanup() {
     let dir = TempDir::new();
     let bundle = dir.0.join("FengheShell.app");
     write(&bundle.join("Contents/MacOS/fengheshell"), "old app");
-    let target = Target::MacApp { bundle: bundle.clone() };
+    let target = Target::MacApp {
+        bundle: bundle.clone(),
+    };
     let mut prepared = Prepared::stage(&target).unwrap();
     let new_app = prepared.work.join("new/FengheShell.app");
     write(&new_app.join("Contents/MacOS/fengheshell"), "new app");
@@ -286,7 +357,10 @@ fn mac_bundle_swap_keeps_the_old_bundle_until_cleanup() {
     assert_eq!(prepared.install().unwrap(), bundle);
     drop(prepared);
     assert_eq!(read(&bundle.join("Contents/MacOS/fengheshell")), "new app");
-    assert_eq!(read(&work.join("old.app/Contents/MacOS/fengheshell")), "old app");
+    assert_eq!(
+        read(&work.join("old.app/Contents/MacOS/fengheshell")),
+        "old app"
+    );
 }
 
 #[test]
@@ -338,7 +412,12 @@ fn waiting_strips_the_flag_and_returns_for_an_exited_process() {
         .unwrap();
     let pid = child.id();
     child.wait().unwrap();
-    let mut args = vec!["fengheshell".into(), WAIT_PID_ARG.into(), pid.to_string(), "--x".into()];
+    let mut args = vec![
+        "fengheshell".into(),
+        WAIT_PID_ARG.into(),
+        pid.to_string(),
+        "--x".into(),
+    ];
     let started = std::time::Instant::now();
     wait_for_previous(&mut args);
     assert!(started.elapsed() < Duration::from_secs(5));

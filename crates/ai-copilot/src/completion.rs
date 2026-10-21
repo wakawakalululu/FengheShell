@@ -81,10 +81,13 @@ impl CompletionCache {
             Ok(g) => g,
             Err(e) => e.into_inner(),
         };
-        inner.map.insert(key.clone(), Entry {
-            value,
-            at: Instant::now(),
-        });
+        inner.map.insert(
+            key.clone(),
+            Entry {
+                value,
+                at: Instant::now(),
+            },
+        );
         inner.order.retain(|k| k != &key);
         inner.order.push_back(key);
         while inner.map.len() > self.capacity {

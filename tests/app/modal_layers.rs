@@ -46,6 +46,39 @@ fn host() -> (
     (ui, window, windows)
 }
 
+/// Human-readable diff between two full-window buffers, restricted to the
+/// password-field region (the same box `password_pixels` samples). Used in
+/// assert messages so a CI failure says *what* differs - count, bounding box
+/// and sample pixels - not just *that* something does.
+#[allow(dead_code)] // kept for diagnosing the flaky password-visibility assertion
+fn pixel_diff_report(a: &[slint::Rgb8Pixel], b: &[slint::Rgb8Pixel]) -> String {
+    let mut count = 0usize;
+    let (mut minx, mut miny, mut maxx, mut maxy) = (usize::MAX, usize::MAX, 0usize, 0usize);
+    let mut samples: Vec<String> = Vec::new();
+    for y in 575..635 {
+        for x in 312..650 {
+            let (pa, pb) = (a[y * 1000 + x], b[y * 1000 + x]);
+            if pa != pb {
+                count += 1;
+                minx = minx.min(x);
+                miny = miny.min(y);
+                maxx = maxx.max(x);
+                maxy = maxy.max(y);
+                if samples.len() < 6 {
+                    samples.push(format!("({x},{y}) {pa:?} vs {pb:?}"));
+                }
+            }
+        }
+    }
+    if count == 0 {
+        return "no differing pixels in the password-field region".to_string();
+    }
+    format!(
+        "{count} px differ in x[{minx}..{maxx}] y[{miny}..{maxy}]; samples: {}",
+        samples.join(", ")
+    )
+}
+
 fn bind_cancellations(ui: &AppWindow, calls: Rc<RefCell<Vec<&'static str>>>, window_id: u64) {
     let weak = ui.as_weak();
     let count = calls.clone();

@@ -73,8 +73,14 @@ impl AppError {
 
     pub fn code(&self) -> &'static str {
         match self {
-            Self::Ssh(m) | Self::Sftp(m) | Self::Pty(m) | Self::NotFound(m) | Self::Config(m)
-            | Self::Other(m) | Self::Io(m) | Self::Database(m) => m.code,
+            Self::Ssh(m)
+            | Self::Sftp(m)
+            | Self::Pty(m)
+            | Self::NotFound(m)
+            | Self::Config(m)
+            | Self::Other(m)
+            | Self::Io(m)
+            | Self::Database(m) => m.code,
             Self::Lock => "lock_poisoned",
         }
     }
@@ -82,8 +88,14 @@ impl AppError {
     pub fn params(&self) -> &serde_json::Value {
         static EMPTY: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
         match self {
-            Self::Ssh(m) | Self::Sftp(m) | Self::Pty(m) | Self::NotFound(m) | Self::Config(m)
-            | Self::Other(m) | Self::Io(m) | Self::Database(m) => &m.params,
+            Self::Ssh(m)
+            | Self::Sftp(m)
+            | Self::Pty(m)
+            | Self::NotFound(m)
+            | Self::Config(m)
+            | Self::Other(m)
+            | Self::Io(m)
+            | Self::Database(m) => &m.params,
             Self::Lock => EMPTY.get_or_init(|| json!({})),
         }
     }
@@ -93,10 +105,7 @@ pub type AppResult<T> = Result<T, AppError>;
 
 impl From<std::io::Error> for AppError {
     fn from(e: std::io::Error) -> Self {
-        Self::Io(CodedMsg::new(
-            "io_error",
-            json!({ "err": e.to_string() }),
-        ))
+        Self::Io(CodedMsg::new("io_error", json!({ "err": e.to_string() })))
     }
 }
 

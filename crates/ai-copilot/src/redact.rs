@@ -45,15 +45,15 @@ pub fn builtin_rule_specs() -> Vec<RedactRuleSpec> {
             "INTERNAL_IP",
             r"\b172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}\b",
         ),
-        (
-            "ip-192",
-            "INTERNAL_IP",
-            r"\b192\.168\.\d{1,3}\.\d{1,3}\b",
-        ),
+        ("ip-192", "INTERNAL_IP", r"\b192\.168\.\d{1,3}\.\d{1,3}\b"),
         ("bearer", "TOKEN", r"(?i)bearer\s+[A-Za-z0-9\-._~+/]+=*"),
         ("sk-key", "API_KEY", r"\bsk-[A-Za-z0-9]{20,}\b"),
         ("aws-key", "AWS_KEY", r"\bAKIA[0-9A-Z]{16}\b"),
-        ("jwt", "TOKEN", r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"),
+        (
+            "jwt",
+            "TOKEN",
+            r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b",
+        ),
         ("hex", "HEX", r"\b[0-9a-fA-F]{32,}\b"),
     ]
     .into_iter()
@@ -80,7 +80,10 @@ pub struct IndexedRedactor {
 impl std::fmt::Debug for IndexedRedactor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IndexedRedactor")
-            .field("rules", &self.rules.iter().map(|r| &r.id).collect::<Vec<_>>())
+            .field(
+                "rules",
+                &self.rules.iter().map(|r| &r.id).collect::<Vec<_>>(),
+            )
             .finish()
     }
 }
@@ -310,7 +313,10 @@ mod tests {
 
     #[test]
     fn rejects_invalid_and_zero_width_patterns() {
-        assert_eq!(validate_pattern("(").unwrap_err().code(), "redact_invalid_regex");
+        assert_eq!(
+            validate_pattern("(").unwrap_err().code(),
+            "redact_invalid_regex"
+        );
         for pattern in ["", "^", "$", "a*", r"\b", r"x*y*"] {
             assert_eq!(
                 validate_pattern(pattern).unwrap_err().code(),

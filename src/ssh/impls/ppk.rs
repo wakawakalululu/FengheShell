@@ -191,7 +191,7 @@ fn decrypt_private_blob(ppk: &mut Ppk, passphrase: &str) -> Result<()> {
     if passphrase.is_empty() {
         bail!("this PuTTY private key is encrypted; enter its passphrase");
     }
-    if ppk.private.is_empty() || ppk.private.len() % 16 != 0 {
+    if ppk.private.is_empty() || !ppk.private.len().is_multiple_of(16) {
         bail!("invalid encrypted PPK private-data length");
     }
 
@@ -471,12 +471,12 @@ fn push_string(out: &mut Vec<u8>, value: &[u8]) -> Result<()> {
 }
 
 fn decode_hex(value: &str) -> Result<Vec<u8>> {
-    if value.len() % 2 != 0 {
+    if !value.len().is_multiple_of(2) {
         bail!("hex value has odd length");
     }
     value
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>().0.iter()
         .map(|pair| {
             let text = std::str::from_utf8(pair).expect("hex input is UTF-8");
             u8::from_str_radix(text, 16).context("invalid hex digit")

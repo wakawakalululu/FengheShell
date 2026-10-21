@@ -40,9 +40,7 @@ pub(crate) fn run_stdio() -> Result<()> {
 async fn handle(request: Value, allow_config_import: bool) -> Option<Value> {
     let id = request.get("id").cloned();
     let method = request.get("method").and_then(Value::as_str);
-    if id.is_none() {
-        return None;
-    }
+    id.as_ref()?;
     let id = id.unwrap_or(Value::Null);
     let params = request.get("params").cloned().unwrap_or_else(|| json!({}));
     match method {
@@ -63,10 +61,8 @@ fn initialize(params: &Value) -> Value {
         .get("protocolVersion")
         .and_then(Value::as_str)
         .unwrap_or(LATEST_PROTOCOL_VERSION);
-    let protocol_version = SUPPORTED_PROTOCOL_VERSIONS
-        .contains(&requested)
-        .then_some(requested)
-        .unwrap_or(LATEST_PROTOCOL_VERSION);
+    let protocol_version = if SUPPORTED_PROTOCOL_VERSIONS
+        .contains(&requested) { requested } else { LATEST_PROTOCOL_VERSION };
     json!({
         "protocolVersion": protocol_version,
         "capabilities": { "tools": { "listChanged": false } },
@@ -182,11 +178,17 @@ mod tests {
         assert_eq!(tool_arguments(Some(&encoded)), Some(object));
         assert_eq!(tool_arguments(None), Some(json!({})));
         assert_eq!(tool_arguments(Some(&Value::Null)), Some(json!({})));
-        assert_eq!(tool_arguments(Some(&Value::String(" ".into()))), Some(json!({})));
+        assert_eq!(
+            tool_arguments(Some(&Value::String(" ".into()))),
+            Some(json!({}))
+        );
         // Anything else is rejected instead of looking like missing arguments.
         assert_eq!(tool_arguments(Some(&json!([1, 2]))), None);
         assert_eq!(tool_arguments(Some(&Value::String("[1]".into()))), None);
-        assert_eq!(tool_arguments(Some(&Value::String("not json".into()))), None);
+        assert_eq!(
+            tool_arguments(Some(&Value::String("not json".into()))),
+            None
+        );
     }
 
     #[tokio::test]
@@ -208,7 +210,10 @@ mod tests {
         .await
         .unwrap();
         let text = response["result"]["content"][0]["text"].as_str().unwrap();
-        assert!(!text.contains("missing or invalid string argument"), "{text}");
+        assert!(
+            !text.contains("missing or invalid string argument"),
+            "{text}"
+        );
     }
 
     #[tokio::test]
