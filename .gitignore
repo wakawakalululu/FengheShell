@@ -1,12 +1,16 @@
 /target
 # The vendored rssh snapshot ships a web front-end; never commit its deps.
 node_modules/
-Cargo.lock
+# Cargo.lock is tracked on purpose: FengheShell ships binaries, release.yml
+# builds with --locked and checks the tag against the locked version, and
+# scripts/release.ps1 stages it. Do not re-add the ignore rule.
 *.rs.bk
 .DS_Store
 /.vscode
 /.idea
 /.claude
+/.codebuddy
+/.Trash-0
 /.codegraph
 /AGENTS.md
 /opencode.jsonc
