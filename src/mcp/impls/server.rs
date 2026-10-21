@@ -61,8 +61,11 @@ fn initialize(params: &Value) -> Value {
         .get("protocolVersion")
         .and_then(Value::as_str)
         .unwrap_or(LATEST_PROTOCOL_VERSION);
-    let protocol_version = if SUPPORTED_PROTOCOL_VERSIONS
-        .contains(&requested) { requested } else { LATEST_PROTOCOL_VERSION };
+    let protocol_version = if SUPPORTED_PROTOCOL_VERSIONS.contains(&requested) {
+        requested
+    } else {
+        LATEST_PROTOCOL_VERSION
+    };
     json!({
         "protocolVersion": protocol_version,
         "capabilities": { "tools": { "listChanged": false } },
