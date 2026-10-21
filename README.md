@@ -1,17 +1,11 @@
-# FengheShell
+# FengheShell（风河）
 
 **简体中文** | [English](./README.en.md)
 
-一个轻量级、低内存占用的 SSH / 终端客户端，灵感来自 FinalShell，但完全由
-**Rust + [Slint](https://slint.dev)** 实现。目标是保留 FinalShell 的核心体验
-（资源监控侧栏、会话管理、多标签页终端）的同时，把内存占用从 400 MB+ 的
-JVM 压到几十 MB 原生级别。
-
-> **FengheShell（缝合的 Shell）** 是在上游 MeatShell 之上做的二次开发项目：
-> 保留它的资源监控侧栏 / 多标签终端 / SFTP 底座，并把
-> [rssh](https://github.com/shihuili1218/rssh) 的 AI 运维 Copilot 范式缝进来
-> （终端上下文捕获、本地脱敏、带副作用评级的命令执行）。两者同为 Rust，无需 FFI 胶水层。
-> 详见 [AI Copilot 缝合说明](docs/AI_COPILOT.md)。
+风河（FengheShell，谐音「缝合」）是一个轻量级、低内存占用的 SSH / 终端客户端，
+灵感来自 FinalShell，但完全由 **Rust + [Slint](https://slint.dev)** 实现。目标是
+保留 FinalShell 的核心体验（资源监控侧栏、会话管理、多标签页终端）的同时，把内存
+占用从 400 MB+ 的 JVM 压到几十 MB 原生级别。
 
 ## 截图
 
@@ -27,11 +21,12 @@ JVM 压到几十 MB 原生级别。
 
 ## 下载与安装
 
-**FengheShell 目前还没有对外发布的预编译包，请从源码构建（见下方「运行」一节）。**
-应用内的「检查更新」也已暂时关闭：本项目还没有自己的发布源，等有了之后只要在
-`src/update.rs` 里把 `RELEASE_API` 填成对应的 releases API 即可恢复。
+预编译包由 GitHub Actions 构建，正式版本发布后可在
+[GitHub Releases](https://github.com/wakawakalululu/FengheShell/releases) 下载。
+如果暂时没有可用版本，请从源码构建（见下方「运行」一节）。
 
-（打包脚本与 CI 工作流保留在仓库里，等发布流水线就绪后启用。）
+应用内的「检查更新」尚未接入发布源，因此不会自动检查更新；填写
+`src/update.rs` 中的 `RELEASE_API` 与 `RELEASE_DOWNLOAD_PATH` 后即可启用。
 
 从源码 `cargo run`（Linux Mint / Ubuntu / Debian）需要先安装 Slint/winit/rfd 等用到的系统开发包：
 
@@ -46,9 +41,9 @@ sudo apt install -y --no-install-recommends \
   libudev-dev
 ```
 
-### macOS
+### macOS 安装包
 
-下载得到的是 `.zip`，里面是 `fengheshell.app` 应用程序包：
+如果你拿到的是 macOS `.zip` 构建产物，里面是 `fengheshell.app` 应用程序包：
 
 ```bash
 # 解压(aarch64 = Apple 芯片，x86_64 = Intel)
@@ -281,6 +276,18 @@ MCP 会先通过 `list_sessions` 查找匹配的已保存会话，再按已授�
 SFTP 工具。若存在多条同主机会话，可在提示词中补充 GUI 中的会话名称。建议诊断提示词
 明确写出目标主机、日志或堆文件路径，以及是否允许重启、修改配置、下载文件等操作边界。
 
+### 远程 MCP（Streamable HTTP）
+
+除本地 stdio 外，FengheShell 还支持可选的 Streamable HTTP 模式，用于把 MCP 服务部署
+到远端并通过外部 OAuth 2.1 / OIDC 提供方认证。该模式默认关闭，需要显式指定私有配置
+目录并以 `--http-config` 启动；现有 GUI、CLI 和 stdio MCP 的行为不变。
+
+```bash
+fengheshell --data-dir /path/to/profile mcp serve --http-config /path/to/http.json
+```
+
+部署、认证和安全边界见 [docs/REMOTE_MCP.md](docs/REMOTE_MCP.md)。
+
 ## 项目布局
 
 FengheShell 本身就是仓库根目录：Cargo workspace 在这里，`src/` 是二进制，`crates/` 是可复用的纯逻辑。
@@ -326,7 +333,6 @@ FengheShell/
 AI Copilot 的三层解耦与执行约束见 [docs/AI_COPILOT.md](docs/AI_COPILOT.md)；
 `third_party/` 的用途见 [third_party/README.md](third_party/README.md)。
 
-
 ## 开发提示
 
 - Slint 控件有非常严格的布局 DSL，改 `.slint` 后 `cargo check` 是最快的
@@ -341,29 +347,26 @@ AI Copilot 的三层解耦与执行约束见 [docs/AI_COPILOT.md](docs/AI_COPILO
 不要直接手动修改 `Cargo.toml` 后再打标签。使用发布脚本，让 Git tag 指向的提交本身就已经包含正确版本号：
 
 ```powershell
-.\scripts\release.ps1 v0.6.0 -Push
+.\scripts\release.ps1 v0.7.9 -Push
 ```
 
-脚本会更新 `Cargo.toml` / `Cargo.lock`，运行 `cargo check --locked`，验证 `fengheshell --version`，提交 `Release v0.6.0`，创建 annotated tag，并推送当前分支和 tag。更多细节见 [docs/release.md](docs/release.md)。
-
-## 相关群组
-
-<p align="center">
-  <img src="docs/QR/QQ_Group_QR_Code.jpg" alt="QQ群二维码" width="300"><br>
-  <em>扫描二维码加入 QQ 群，与其他用户交流使用经验、反馈问题或获取最新动态</em>
-</p>
-
-## 友情链接
-
-- [XenTerm](https://github.com/ixbaicn/XenTerm) (新衍生分支，共同进步)
+脚本会更新 `Cargo.toml` / `Cargo.lock`，运行 `cargo check --locked`，验证
+`fengheshell --version`，提交 `Release v0.7.9`，创建 annotated tag，并推送当前分支和
+tag。推送后，[Release 工作流](.github/workflows/release.yml) 会在 GitHub Actions 上
+构建 Windows / Linux / macOS 安装包并附到对应的 GitHub Release；也可以在 Actions
+页面手动运行该工作流，只下载构建产物而不创建 Release。更多细节见
+[docs/release.md](docs/release.md)。
 
 ## License
 
 MIT OR Apache-2.0（双许可）。
 
+## 上游与致谢
 
-## Authenticated remote MCP / 带认证的远程 MCP
+FengheShell（风河）基于 [MeatShell](https://github.com/yituorou/meatshell) 二次开发：
+保留其资源监控侧栏、多标签终端与 SFTP 底座，并借鉴
+[rssh](https://github.com/shihuili1218/rssh) 的 AI 运维 Copilot 设计，接入终端上下文
+捕获、本地脱敏和带副作用分级的命令执行。两者同为 Rust，无需 FFI 胶水层。
 
-Run the new opt-in Streamable HTTP service with an external OAuth 2.1 provider,
-HTTPS reverse proxy and an explicitly selected private profile. Existing GUI, CLI
-and stdio MCP remain unchanged. See [deployment, authentication and security limits](docs/REMOTE_MCP.md).
+AI Copilot 的实现说明见 [docs/AI_COPILOT.md](docs/AI_COPILOT.md)，rssh 参考快照见
+[third_party/README.md](third_party/README.md)。

@@ -4,14 +4,17 @@ All notable changes are documented here. 本文件记录所有重要变更。
 中英对照（中文在前，English after）.
 
 > **关于更名**：本项目是在上游 MeatShell 的基础上做的二次开发，更名为
-> **FengheShell**（缝合的 Shell）。`0.7.8` 及更早的条目是上游 MeatShell 时代的记录，
+> **FengheShell**（风河，谐音「缝合」）。`0.7.8` 及更早的条目是上游 MeatShell 时代的记录，
 > 其中的产品名按当时名称保留，不做替换。
-> This project is a second-stage fork of upstream MeatShell, renamed **FengheShell**.
+> This project is a second-stage fork of upstream MeatShell, renamed **FengheShell**
+> (风河, a homophone of 缝合, "stitching").
 > Entries up to and including `0.7.8` are the upstream record and keep the name
 > they shipped under.
 
 ## [未发布] - Unreleased
 
+- **确定中文名「风河」**（谐音「缝合」），英文名与可执行文件名保持 FengheShell / `fengheshell` 不变。
+- **The project now has the Chinese name 风河** (a homophone of 缝合, "stitching"); the English name and executable stay FengheShell / `fengheshell`.
 - **AI Copilot 新增 YOLO 模式（完全信任）。** 设置 → Interface → AI Copilot 页新增「YOLO 模式（完全信任）」开关（默认关、即时生效、跨窗口同步）。开启后本地脱敏、shape validator 与所有审批（`run_command` / file_ops 四个步骤 / `web_fetch`，含破坏性命令）一次性全部撤掉，命令由 AI 直接执行；开启期间抽屉顶部常驻红色警示横幅，每轮审计记录一条 `yolo mode active` 的 Note。仅建议在受控环境（容器 / 可快照回滚的虚拟机）或完全本地模型（如 Ollama）下使用。详见 [docs/AI_COPILOT.md](docs/AI_COPILOT.md)。
 - **The AI Copilot drawer gains a YOLO mode (full trust).** A new "YOLO mode (full trust)" switch on the Settings -> Interface -> AI Copilot page (off by default, applied instantly and synced across windows) removes local redaction, the shape validator and every approval (`run_command`, the four file_ops steps, `web_fetch` - destructive commands included) at once, so commands run directly; while it is on a red warning banner stays pinned to the drawer and each audit round records a `yolo mode active` note. Intended for controlled environments (containers, snapshot-revertible VMs) or fully local models (e.g. Ollama) only. See [docs/AI_COPILOT.md](docs/AI_COPILOT.md).
 - **新增 AI Copilot（把 rssh 的 AI 运维 Copilot 范式缝进 FengheShell，参考 GitHub Copilot 的能力分层）：补全层 —— 命令栏输入时以灰色幽灵文本给出后续命令，带本机内存缓存（256 条 LRU、10 分钟过期、命中零请求），可用开关关闭（默认开启），Tab 接受、Esc 清除；对话层 Ask（默认）—— 解释现象、定位原因、给出命令建议；代理层 Agent —— 发布计划清单、取证、执行、验证、汇报并逐步留痕。抽屉由终端状态条右侧的五芒星打开，或按 Ctrl+Space。** 上下文走 OSC 133 命令块解析（没有时退回本程序自带的 shell hook，OSC 697），出网前做本地脱敏（内网 IP / Bearer、JWT Token / `sk-`、AWS key / 长 hex 串，共 8 条内置规则），AI 回代带占位符的命令在本机反向还原后才写入终端；命令卡片按只读 / 有副作用 / 高危三档决定「一键执行」还是「仅填入终端等你回车」，被 shape validator 拦下的命令不允许填入。每次提问都会带上本机资源监控快照，硬件异常时打开抽屉自动起一轮排查。支持 OpenAI 兼容接口、Anthropic 与本地 Ollama。详见 [docs/AI_COPILOT.md](docs/AI_COPILOT.md)。
