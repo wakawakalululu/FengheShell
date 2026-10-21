@@ -49,8 +49,10 @@
   会话生命周期必须独立于终端标签的可见性；GitHub Copilot Chat 本身也是独立面板。
 - **每个会话有且仅有一个「锚点 tab」**（创建时绑定当前终端标签；也允许创建无锚点的
   纯对话会话）。锚点决定该会话的终端上下文来源（块窗口、命令执行写入的 PTY）。
-- **迁移策略**：旧 per-tab 抽屉废弃。首次启动时把每个含消息的 `TabAi` 一次性迁移为
-  「锚点 = 该 tab」的会话（标题取首条用户消息前 30 字），旧代码路径删除，不保留双 UI。
+- **迁移策略**：旧 per-tab 抽屉废弃，不保留双 UI。**现状对话不落盘**（`TabAi.messages`
+  仅在内存，Slint 的 `ai-messages` 只是镜像，见 `src/app/ai.rs`），进程退出即丢，
+  因此升级后不存在可迁移的历史：首次启动按需为终端 tab 惰性创建**空**锚点会话，
+  不伪造历史。从本版本起，会话历史才由 `ai_conversations.json` 承接。
 - `Ctrl+Space` 语义：打开面板并聚焦当前 tab 的锚点会话；无则打开/新建默认会话。
 
 ### D2 挂起与退出的语义
@@ -114,7 +116,8 @@
   面板停靠时终端区自动收缩，不遮挡。
 - **验收**：
   1. 面板打开/关闭不中断任何运行中的会话（消息继续累积，重开后内容完整）。
-  2. 旧版本升级后，原各 tab 抽屉对话全部迁移为锚点会话，无消息丢失（对照迁移前截图）。
+  2. 旧版本升级后不残留 per-tab 抽屉 UI；打开面板时按当前 tab 惰性创建空锚点会话，
+     不展示伪造的旧消息（现状对话未落盘，此项明确不做数据迁移）。
   3. 面板常驻时终端多标签切换、htop 全屏渲染无回归（现有 tests 全绿）。
   4. 切到 520px 档后重启应用，面板仍为 520px（`ai_panel_width` 持久化生效）。
 
@@ -262,8 +265,9 @@
 "ai_panel_width": 360                  // 360 | 520，面板宽度档位
 ```
 
-- Rust 侧 `AiMessage`（现为 Slint 结构 + `src/app/ai.rs` 镜像）需补 `serde` 派生；
-  恢复时 `card-id` 保留、`disposition: pending` → `"expired"`。
+- `AiMessage` 由 Slint 生成（`slint::include_modules!`），**不能直接加 `serde` 派生**；
+  新增 Rust 侧持久化 DTO（如 `StoredMessage`）做双向转换。恢复时 `card-id` 保留、
+  `disposition: pending` → `"expired"`。
 - 单会话上限：500 条消息 / 4MB 文本，超限淘汰最旧的**非卡片**消息（卡片是审计痕迹，
   不参与淘汰）。
 
@@ -275,7 +279,7 @@
 |---|---|
 | 安全 | 会话文件与导出按敏感文件管理；恢复的 pending 卡片作废；同锚点执行串行化；记忆与 skill 内容过脱敏；新功能不得绕过 Run Gate 四道墙；外部 MCP 默认关闭 |
 | 性能 | 切会话 UI < 100ms；10 个会话常驻面板内存增量 < 20MB；持久化防抖批量写不逐 token 落盘；并发运行上限默认 3 |
-| 兼容 | `sessions.json` 新字段全部可选；旧 per-tab 对话一次性迁移（F1）；`Ctrl+Space` 行为变更需在 CHANGELOG 与设置提示 |
+| 兼容 | `sessions.json` 新字段全部可选；旧 per-tab 对话不迁移（现状未落盘，见 D1）；`Ctrl+Space` 行为变更需在 CHANGELOG 与设置提示 |
 | 可观测 | 复用现有审计日志：新增事件点（会话创建/切换/恢复、并发拒绝、串行化降级、记忆写入、模型锁定切换） |
 | 质量 | 每个 P0/P1 功能附验收标准（见 §3）；核心路径补单测（串行化锁、并发上限、迁移、脱敏导出） |
 
@@ -285,7 +289,7 @@
 
 | 里程碑 | 范围 | 出口标准 |
 |---|---|---|
-| **M1（P0）多会话骨架** | F1 布局重构 + D1/D2/D3/D4 决策落地 + F4 会话管理 + F5 后台进度 + 旧对话迁移 | 可演示：3 会话并行、切回 2s 内见进度、关面板不中断、重启恢复 interrupted；现有 tests 全绿 |
+| **M1（P0）多会话骨架** | F1 布局重构 + D1/D2/D3/D4 决策落地 + F4 会话管理 + F5 后台进度 + 旧抽屉下线 | 可演示：3 会话并行、切回 2s 内见进度、关面板不中断、重启恢复 interrupted、宽度档位保持；现有 tests 全绿 |
 | **M2（P1）管理闭环** | F2 模型管理 + F3 会话级模式 + F6 历史管理 + F7 记忆 + F8 技能 UI + F9-P1 内置 MCP 开关 | 技能/记忆零手改 JSON；历史可搜索可导出；模型按会话锁定可验证 |
 | **M3（P2）扩展** | F9-P2 外部 MCP client（独立 RFC 先行）、记忆自动提炼评估、会话导出格式增强、LLM 自动命名 | 另立需求文档评审 |
 
@@ -317,7 +321,9 @@ model granularity, interactions, priorities, NFRs) must be closed first. Key dec
 global right-dock panel with per-conversation "anchor tab"; suspend = UI detach while the
 round keeps running; app exit cancels rounds and restores conversations as `interrupted`
 with expired approval cards; at most 3 concurrently running conversations with
-per-anchor serialized command execution; persistence in `ai_conversations.json`; memory =
+per-anchor serialized command execution; persistence in `ai_conversations.json` (the
+current build keeps conversations in memory only, so no legacy migration is attempted,
+and a separate serde DTO mirrors the Slint message type); memory =
 explicit user-managed facts injected into the system prompt (manual + AI-proposed cards);
 MCP split into P1 config surface for the built-in server and a P2 external-client RFC.
 Delivered as three milestones (M1 multi-session skeleton, M2 management closure,
