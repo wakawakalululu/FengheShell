@@ -124,7 +124,7 @@ open /Applications/fengheshell.app
 cargo run --release
 ```
 
-首次启动会在 `%APPDATA%/fengheshell/sessions.json` 建立空的会话库。点击右上
+首次启动会在对应平台的配置目录（见上方「会话管理」）建立空的会话库。点击右上
 角 **“＋ 新建会话”** 添加第一台服务器。
 
 ## CLI 与 MCP 自动化
@@ -217,16 +217,14 @@ MCP 将无法列出、连接该会话，也无法经由它跳转；CLI 不受影
   "mcpServers": {
     "fengheshell": {
       "command": "/absolute/path/to/fengheshell",
-      //Mac OS
-      //"command": "/Applications/FengheShell.app/Contents/MacOS/fengheshell",
-      //Linux
-      //your path 
       "args": ["mcp", "serve"]
     }
   }
 }
 ```
 
+macOS 的路径通常是
+`/Applications/FengheShell.app/Contents/MacOS/fengheshell`；Linux 填写实际二进制路径。
 Windows 下 `command` 可以填写 `C:\\path\\to\\fengheshell.exe`。重启或刷新 MCP 客户端
 后，应能看到 `fengheshell` 服务以及会话查询、远程命令、目录浏览、文本读取、上传和下载
 等工具。不同 AI 客户端的 MCP 配置文件位置不同，请以对应客户端文档为准。
