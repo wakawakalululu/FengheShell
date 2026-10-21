@@ -345,7 +345,7 @@ jobs:
       - name: Build Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: fengheshell-${{ github.ref_name }}-linux-x86_64.flatpak
+          bundle: fengheshell-${{ env.BUILD_VERSION }}-linux-x86_64.flatpak
           manifest-path: packaging/flatpak/io.github.yituorou.fengheshell.yml
           cache-key: flatpak-builder-${{ github.sha }}
 
@@ -353,14 +353,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64-flatpak
-          path: fengheshell-${{ github.ref_name }}-linux-x86_64.flatpak
+          path: fengheshell-${{ env.BUILD_VERSION }}-linux-x86_64.flatpak
 
       - name: Attach Flatpak to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           prerelease: ${{ contains(github.ref_name, '-remote.') }}
-          files: fengheshell-${{ github.ref_name }}-linux-x86_64.flatpak
+          files: fengheshell-${{ env.BUILD_VERSION }}-linux-x86_64.flatpak
           fail_on_unmatched_files: true
 
   build-linux-aarch64-glibc228:
