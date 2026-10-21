@@ -144,7 +144,11 @@ jobs:
           # --output appimage already invokes the plugin; --plugin appimage is redundant and causes an error
           ./linuxdeploy --appdir AppDir --output appimage
 
-          mv fengheshell*.AppImage "fengheshell-${VERSION}-linux-x86_64.AppImage"
+          # appimagetool names the output after the desktop Name (FengheShell-x86_64.AppImage),
+          # so do not assume an all-lowercase filename.
+          APPIMAGE_FILE="$(find . -maxdepth 1 -type f -name '*.AppImage' ! -name 'linuxdeploy*' -print -quit)"
+          test -n "$APPIMAGE_FILE"
+          mv "$APPIMAGE_FILE" "fengheshell-${VERSION}-linux-x86_64.AppImage"
           echo "APPIMAGE=fengheshell-${VERSION}-linux-x86_64.AppImage" >> "$GITHUB_ENV"
 
       - name: Install cargo-deb
