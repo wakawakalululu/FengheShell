@@ -2,10 +2,12 @@
 
 **简体中文** | [English](./README.en.md)
 
-风河（FengheShell，谐音「缝合」）是一个轻量级、低内存占用的 SSH / 终端客户端，
+风河（FengheShell）是一个轻量级、低内存占用的 SSH / 终端客户端，
 灵感来自 FinalShell，但完全由 **Rust + [Slint](https://slint.dev)** 实现。目标是
 保留 FinalShell 的核心体验（资源监控侧栏、会话管理、多标签页终端）的同时，把内存
 占用从 400 MB+ 的 JVM 压到几十 MB 原生级别。
+
+中文名「风河」谐音「缝合」，也呼应项目把上游能力缝合到一起的由来。
 
 ## 截图
 
