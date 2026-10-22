@@ -1,9 +1,9 @@
 name: CI
 
-# 每次推送 / PR 到 main 自动跑：rustfmt + Clippy + 测试 + 构建检查。
+# 每次推送 / PR 到 main 自动跑：rustfmt + Clippy + 测试 + 构建检查 + npm audit。
 # 多平台发布构建与 GitHub Release 附件在 release.yml（推送 v* tag 触发），
 # 这里只做快速门禁，问题在合入前暴露。
-# Every push / PR to main runs fmt + clippy + tests + a build check.
+# Every push / PR to main runs fmt + clippy + tests + a build check + npm audit.
 # The multi-platform release build lives in release.yml (v* tags).
 
 on:
@@ -92,3 +92,26 @@ jobs:
       # release 多平台构建由 release.yml 在打 tag 时负责。
       - name: Build check
         run: cargo build --workspace
+
+  # vendored rssh 快照是参考代码，不随 FengheShell 构建或发布，但它的
+  # package-lock.json 被提交进仓库、会被代码扫描（CNB TCA）检查。在这里
+  # 设门禁：lock 文件里出现任何已公布漏洞即失败，把问题挡在合入前，
+  # 而不是等扫描器事后报出来。
+  # The vendored rssh snapshot is reference-only, but its committed
+  # package-lock.json is scanned (CNB TCA). Gate it here: any published
+  # advisory in the lock file fails CI instead of surfacing later as a
+  # scanner finding.
+  npm-audit:
+    name: npm audit (rssh snapshot)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: npm audit
+        working-directory: third_party/rssh
+        run: npm audit
