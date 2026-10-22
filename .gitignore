@@ -9,7 +9,7 @@ node_modules/
 /.vscode
 /.idea
 /.claude
-/.codebuddy
+/.codebuddy/settings.local.json
 /.Trash-0
 /.codegraph
 /AGENTS.md
