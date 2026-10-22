@@ -13,6 +13,8 @@ All notable changes are documented here. 本文件记录所有重要变更。
 
 ## [未发布] - Unreleased
 
+- **升级 vendored rssh 快照的 npm 依赖，清除 9 个已公布漏洞（含 CNB 代码扫描标记的 DOMPurify 两个 CVE）。** dompurify 3.4.1 → 3.4.17（CVE-2026-49459：`IN_PLACE` 模式下 XSS 净化绕过；CVE-2026-65899：`clearConfig()` 不重置 Trusted Types 策略）；svelte 5.55.1 → 5.57.2、vite 6.4.2 → 6.4.5、vitest 4.1.5 → 4.1.12，并同步刷新传递依赖（devalue 5.9.4、nanoid 3.3.20、postcss 8.5.31、source-map-js 1.2.2、@vitest/mocker 4.1.12）。该快照为参考代码，不随本程序构建或发布；修复后 `npm audit` 报告 0 漏洞。
+- **Upgrade the vendored rssh snapshot's npm dependencies, clearing 9 published advisories (including the two DOMPurify CVEs flagged by CNB code scanning).** dompurify 3.4.1 → 3.4.17 (CVE-2026-49459: XSS sanitization bypass with `IN_PLACE`; CVE-2026-65899: `clearConfig()` not resetting the Trusted Types policy); svelte 5.55.1 → 5.57.2, vite 6.4.2 → 6.4.5, vitest 4.1.5 → 4.1.12, with transitive dependencies refreshed (devalue 5.9.4, nanoid 3.3.20, postcss 8.5.31, source-map-js 1.2.2, @vitest/mocker 4.1.12). The snapshot is reference-only and is neither built nor shipped by FengheShell; `npm audit` now reports 0 vulnerabilities.
 - **确定中文名「风河」**（谐音「缝合」），英文名与可执行文件名保持 FengheShell / `fengheshell` 不变。
 - **The project now has the Chinese name 风河** (a homophone of 缝合, "stitching"); the English name and executable stay FengheShell / `fengheshell`.
 - **修复 Release 工作流的可选产物上传与手动构建路径。** AppImage 按 appimagetool 实际生成的文件名查找并重命名，不再因大小写不匹配而漏传；Windows MSI 构建补上 `--package fengheshell`，避免 workspace 下 cargo-wix 直接报错；AppImage 和 Windows MSI 不再依赖动态 `GITHUB_ENV` 条件；Flatpak 与手动分支构建改用无斜杠的 `BUILD_VERSION` 命名。
